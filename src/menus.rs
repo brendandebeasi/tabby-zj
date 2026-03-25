@@ -1,5 +1,6 @@
 use crate::persistence;
 use crate::state::{MenuTarget, PluginState, RenameState, RenameTarget};
+#[allow(unused_imports)]
 use zellij_tile::prelude::*;
 
 #[derive(Clone, Debug)]
