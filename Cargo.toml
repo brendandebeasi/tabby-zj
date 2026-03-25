@@ -3,6 +3,11 @@ name = "tabby-zj"
 version = "0.1.0"
 edition = "2021"
 description = "Zellij sidebar plugin — grouped tabs, context menus, widgets, indicators"
+license = "MIT"
+repository = "https://github.com/brendandebeasi/tabby-zj"
+homepage = "https://github.com/brendandebeasi/tabby-zj"
+keywords = ["zellij", "plugin", "terminal", "sidebar", "wasm"]
+categories = ["command-line-utilities"]
 
 [lib]
 crate-type = ["cdylib"]
