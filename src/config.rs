@@ -1,4 +1,5 @@
 use serde::{Deserialize, Serialize};
+use serde_yaml_ng as serde_yaml;
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct Config {
