@@ -6,6 +6,13 @@ use crate::state::{MenuTarget, PluginState};
 use crate::widgets;
 use zellij_tile::prelude::*;
 
+pub const PINNED_HEIGHT: usize = 2;
+
+fn format_sidebar_line(bg: &str, fg: &str, text: &str, cursor: bool) -> String {
+    let cursor_mark = if cursor { colors::REVERSE } else { "" };
+    format!("{}{}{}{}{}", bg, fg, cursor_mark, text, colors::RESET)
+}
+
 pub fn render_sidebar(state: &mut PluginState, rows: usize, cols: usize) {
     if state.sidebar_collapsed {
         for _ in 0..rows {
@@ -14,9 +21,7 @@ pub fn render_sidebar(state: &mut PluginState, rows: usize, cols: usize) {
         state.click_regions = Vec::new();
         return;
     }
-
-    let pinned_height: usize = 2;
-    let scrollable_rows = rows.saturating_sub(pinned_height);
+    let scrollable_rows = rows.saturating_sub(PINNED_HEIGHT);
 
     let sidebar_theme = {
         let s: &PluginState = state;
@@ -202,18 +207,11 @@ pub fn build_sidebar_lines(state: &PluginState, cols: usize) -> (Vec<String>, Ve
             .unwrap_or_default();
         let header_text = format!("{} {}{}", disclosure, icon_part, group.group_name);
         let padded = pad_visible(&header_text, cols);
-        let cursor_mark = if cursor_pos == Some(line_idx) {
-            colors::REVERSE
-        } else {
-            ""
-        };
-        lines.push(format!(
-            "{}{}{}{}{}",
-            colors::ansi_bg(&theme.bg),
-            colors::ansi_fg(&theme.fg),
-            cursor_mark,
-            padded,
-            colors::RESET
+        lines.push(format_sidebar_line(
+            &colors::ansi_bg(&theme.bg),
+            &colors::ansi_fg(&theme.fg),
+            &padded,
+            cursor_pos == Some(line_idx),
         ));
         regions.push(ClickRegion {
             line: line_idx,
@@ -253,18 +251,11 @@ pub fn build_sidebar_lines(state: &PluginState, cols: usize) -> (Vec<String>, Ve
                 (colors::ansi_bg(&tbg), colors::ansi_fg(&tfg))
             };
 
-            let tab_cursor = if cursor_pos == Some(line_idx) {
-                colors::REVERSE
-            } else {
-                ""
-            };
-            lines.push(format!(
-                "{}{}{}{}{}",
-                tab_bg,
-                tab_fg,
-                tab_cursor,
-                padded_tab,
-                colors::RESET
+            lines.push(format_sidebar_line(
+                &tab_bg,
+                &tab_fg,
+                &padded_tab,
+                cursor_pos == Some(line_idx),
             ));
             regions.push(ClickRegion {
                 line: line_idx,
@@ -285,18 +276,11 @@ pub fn build_sidebar_lines(state: &PluginState, cols: usize) -> (Vec<String>, Ve
                 };
                 let pane_text = format!("      {} {}", dot, title_str);
                 let padded_pane = pad_visible(&pane_text, cols);
-                let pane_cursor = if cursor_pos == Some(line_idx) {
-                    colors::REVERSE
-                } else {
-                    ""
-                };
-                lines.push(format!(
-                    "{}{}{}{}{}",
-                    tab_bg,
-                    tab_fg,
-                    pane_cursor,
-                    padded_pane,
-                    colors::RESET
+                lines.push(format_sidebar_line(
+                    &tab_bg,
+                    &tab_fg,
+                    &padded_pane,
+                    cursor_pos == Some(line_idx),
                 ));
                 regions.push(ClickRegion {
                     line: line_idx,

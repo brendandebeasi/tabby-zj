@@ -73,7 +73,7 @@ mod tests {
         state.config.widgets.clock.format = "%H:%M".into();
         state.config.widgets.git.enabled = false;
         let line = render_pinned(&state, 20);
-        let re = regex::Regex::new(r"^\d{2}:\d{2}").unwrap();
+        let re = regex::Regex::new(r"^\d{2}:\d{2}").expect("valid static regex pattern");
         assert!(
             re.is_match(&line),
             "clock should be on the left: {:?}",
@@ -112,7 +112,7 @@ mod tests {
         let line = render_pinned(&state, 30);
         assert_eq!(line.chars().count(), 30);
         assert!(line.contains("dev"), "branch should appear");
-        let re = regex::Regex::new(r"\d{2}:\d{2}").unwrap();
+        let re = regex::Regex::new(r"\d{2}:\d{2}").expect("valid static regex pattern");
         assert!(re.is_match(&line), "clock should appear");
     }
 }

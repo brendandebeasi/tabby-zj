@@ -21,7 +21,6 @@ pub enum MenuAction {
     RenamePane(u32),
     RenameGroup(String),
     ToggleGroup(String),
-    #[allow(dead_code)]
     MoveToGroup(usize, String),
     NewTabInGroup(String),
 }

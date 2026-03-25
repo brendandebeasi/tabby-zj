@@ -44,14 +44,14 @@ mod tests {
     fn test_render_clock_date_format_is_iso() {
         let lines = render_clock("%H:%M", true);
         // Must match YYYY-MM-DD
-        let re = regex::Regex::new(r"^\d{4}-\d{2}-\d{2}$").unwrap();
+        let re = regex::Regex::new(r"^\d{4}-\d{2}-\d{2}$").expect("valid static regex pattern");
         assert!(re.is_match(&lines[0]), "date line: {:?}", lines[0]);
     }
 
     #[test]
     fn test_render_clock_time_format_24h() {
         let lines = render_clock("%H:%M", false);
-        let re = regex::Regex::new(r"^\d{2}:\d{2}$").unwrap();
+        let re = regex::Regex::new(r"^\d{2}:\d{2}$").expect("valid static regex pattern");
         assert!(re.is_match(&lines[0]), "time line: {:?}", lines[0]);
     }
 

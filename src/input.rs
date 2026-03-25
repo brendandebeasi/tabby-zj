@@ -1,5 +1,6 @@
 use crate::click::ClickTarget;
 use crate::persistence;
+use crate::render::PINNED_HEIGHT;
 use crate::state::{MenuState, MenuTarget, PluginState, RenameTarget};
 use crate::workers;
 use zellij_tile::prelude::*;
@@ -346,8 +347,7 @@ fn cursor_ensure_visible(state: &mut PluginState) {
         None => return,
     };
     // 2 lines reserved for pinned widget area at bottom
-    let pinned_height: usize = 2;
-    let scrollable_rows = state.rows.saturating_sub(pinned_height);
+    let scrollable_rows = state.rows.saturating_sub(PINNED_HEIGHT);
     if scrollable_rows == 0 {
         return;
     }
