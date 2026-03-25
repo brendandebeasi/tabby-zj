@@ -1,0 +1,14 @@
+// tabby-zj.kdl — Production Zellij layout with Tabby sidebar
+// Usage: zellij --layout ~/.config/zellij/layouts/tabby-zj.kdl
+
+layout {
+    pane split_direction="vertical" {
+        pane size=25 borderless=true {
+            plugin location="file:~/.config/zellij/plugins/tabby-zj.wasm" {
+                // Optional: override config dir
+                // tabby_zj_config_dir "/path/to/config"
+            }
+        }
+        pane // Main terminal area
+    }
+}

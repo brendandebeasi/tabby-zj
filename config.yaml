@@ -1,0 +1,33 @@
+# Tabby ZJ — default configuration
+# Place at ~/.config/tabby-zj/config.yaml
+
+groups:
+  - name: Default
+    pattern: ".*"
+    theme:
+      bg: "#3c3836"
+      fg: "#ebdbb2"
+
+sidebar:
+  width: 25
+  theme: catppuccin-mocha
+  sort_by: group
+  show_panes: false
+  show_empty_groups: false
+
+indicators:
+  busy:
+    enabled: true
+  bell:
+    enabled: true
+  input:
+    enabled: true
+
+widgets:
+  clock:
+    enabled: true
+    format: "%H:%M:%S"
+    show_date: true
+  git:
+    enabled: true
+    interval_secs: 5

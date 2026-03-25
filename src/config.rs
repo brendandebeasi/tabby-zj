@@ -1,0 +1,367 @@
+use serde::{Deserialize, Serialize};
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct Config {
+    #[serde(default)]
+    pub groups: Vec<GroupConfig>,
+    #[serde(default)]
+    pub sidebar: SidebarConfig,
+    #[serde(default)]
+    pub indicators: IndicatorConfig,
+    #[serde(default)]
+    pub widgets: WidgetConfig,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct GroupConfig {
+    pub name: String,
+    #[serde(default)]
+    pub pattern: String,
+    #[serde(default)]
+    pub working_dir: Option<String>,
+    #[serde(default)]
+    pub theme: ThemeConfig,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ThemeConfig {
+    #[serde(default = "default_bg")]
+    pub bg: String,
+    #[serde(default = "default_fg")]
+    pub fg: String,
+    #[serde(default)]
+    pub active_bg: Option<String>,
+    #[serde(default)]
+    pub active_fg: Option<String>,
+    #[serde(default)]
+    pub icon: Option<String>,
+}
+
+fn default_bg() -> String {
+    "#3c3836".into()
+}
+fn default_fg() -> String {
+    "#ebdbb2".into()
+}
+
+impl Default for ThemeConfig {
+    fn default() -> Self {
+        Self {
+            bg: default_bg(),
+            fg: default_fg(),
+            active_bg: None,
+            active_fg: None,
+            icon: None,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SidebarConfig {
+    #[serde(default = "default_width")]
+    pub width: usize,
+    #[serde(default = "default_theme_name")]
+    pub theme: String,
+    #[serde(default = "default_sort")]
+    pub sort_by: String,
+    #[serde(default = "default_show_panes")]
+    pub show_panes: bool,
+    #[serde(default)]
+    pub show_empty_groups: bool,
+}
+
+fn default_width() -> usize {
+    25
+}
+fn default_theme_name() -> String {
+    "catppuccin-mocha".into()
+}
+fn default_sort() -> String {
+    "group".into()
+}
+fn default_show_panes() -> bool {
+    true
+}
+
+impl Default for SidebarConfig {
+    fn default() -> Self {
+        Self {
+            width: default_width(),
+            theme: default_theme_name(),
+            sort_by: default_sort(),
+            show_panes: default_show_panes(),
+            show_empty_groups: false,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct IndicatorConfig {
+    #[serde(default)]
+    pub busy: IndicatorDef,
+    #[serde(default)]
+    pub bell: IndicatorDef,
+    #[serde(default)]
+    pub input: IndicatorDef,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct IndicatorDef {
+    #[serde(default = "default_true")]
+    pub enabled: bool,
+    #[serde(default)]
+    pub icon: Option<String>,
+    #[serde(default)]
+    pub color: Option<String>,
+}
+
+fn default_true() -> bool {
+    true
+}
+
+impl Default for IndicatorDef {
+    fn default() -> Self {
+        Self {
+            enabled: true,
+            icon: None,
+            color: None,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct WidgetConfig {
+    #[serde(default)]
+    pub clock: ClockWidgetConfig,
+    #[serde(default)]
+    pub git: GitWidgetConfig,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ClockWidgetConfig {
+    #[serde(default = "default_true")]
+    pub enabled: bool,
+    #[serde(default = "default_time_fmt")]
+    pub format: String,
+    #[serde(default = "default_true")]
+    pub show_date: bool,
+}
+
+fn default_time_fmt() -> String {
+    "%H:%M:%S".into()
+}
+
+impl Default for ClockWidgetConfig {
+    fn default() -> Self {
+        Self {
+            enabled: true,
+            format: default_time_fmt(),
+            show_date: true,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct GitWidgetConfig {
+    #[serde(default = "default_true")]
+    pub enabled: bool,
+    #[serde(default = "default_git_interval")]
+    pub interval_secs: u64,
+}
+
+fn default_git_interval() -> u64 {
+    5
+}
+
+impl Default for GitWidgetConfig {
+    fn default() -> Self {
+        Self {
+            enabled: true,
+            interval_secs: default_git_interval(),
+        }
+    }
+}
+
+impl Config {
+    pub fn load() -> Self {
+        let config_dir = std::env::var("TABBY_ZJ_CONFIG_DIR").unwrap_or_else(|_| {
+            let home = std::env::var("HOME").unwrap_or_else(|_| "/tmp".into());
+            format!("{}/.config/tabby-zj", home)
+        });
+        let config_path = format!("{}/config.yaml", config_dir);
+
+        match std::fs::read_to_string(&config_path) {
+            Ok(contents) => match serde_yaml::from_str::<Config>(&contents) {
+                Ok(config) => config,
+                Err(e) => {
+                    eprintln!("tabby-zj: config parse error in {}: {}", config_path, e);
+                    Config::default()
+                }
+            },
+            Err(_) => {
+                // File doesn't exist — use defaults silently
+                Config::default()
+            }
+        }
+    }
+
+    /// Parse config from a YAML string (for testing)
+    #[allow(dead_code)]
+    pub fn from_yaml(yaml: &str) -> Result<Self, serde_yaml::Error> {
+        serde_yaml::from_str(yaml)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_default_config() {
+        let config = Config::default();
+        assert_eq!(config.groups.len(), 0);
+        assert_eq!(config.sidebar.width, 25);
+        assert_eq!(config.sidebar.theme, "catppuccin-mocha");
+        assert!(config.widgets.clock.enabled);
+        assert!(config.indicators.busy.enabled);
+    }
+
+    #[test]
+    fn test_parse_three_groups() {
+        let yaml = r##"
+groups:
+  - name: Frontend
+    pattern: "^FE\\|"
+    theme:
+      bg: "#e74c3c"
+      fg: "#ffffff"
+  - name: Backend
+    pattern: "^BE\\|"
+    theme:
+      bg: "#3498db"
+      fg: "#ffffff"
+  - name: Default
+    pattern: ".*"
+    theme:
+      bg: "#3c3836"
+      fg: "#ebdbb2"
+"##;
+        let config = Config::from_yaml(yaml).expect("should parse");
+        assert_eq!(config.groups.len(), 3);
+        assert_eq!(config.groups[0].name, "Frontend");
+        assert_eq!(config.groups[0].pattern, "^FE\\|");
+        assert_eq!(config.groups[0].theme.bg, "#e74c3c");
+        assert_eq!(config.groups[1].name, "Backend");
+        assert_eq!(config.groups[2].name, "Default");
+    }
+
+    #[test]
+    fn test_invalid_yaml_fallback() {
+        let result = Config::from_yaml("{{invalid: yaml: [");
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_empty_yaml() {
+        let config = Config::from_yaml("").expect("empty yaml should parse to defaults");
+        assert_eq!(config.groups.len(), 0);
+        assert_eq!(config.sidebar.width, 25);
+    }
+
+    #[test]
+    fn test_partial_config_missing_widgets() {
+        let yaml = r#"
+groups:
+  - name: Default
+    pattern: ".*"
+"#;
+        let config = Config::from_yaml(yaml).expect("partial config should parse");
+        assert_eq!(config.groups.len(), 1);
+        assert!(config.widgets.clock.enabled);
+        assert_eq!(config.widgets.clock.format, "%H:%M:%S");
+        assert!(config.widgets.git.enabled);
+    }
+
+    #[test]
+    fn test_theme_config_defaults() {
+        let yaml = r#"
+groups:
+  - name: Test
+    pattern: "test"
+"#;
+        let config = Config::from_yaml(yaml).expect("should parse");
+        let theme = &config.groups[0].theme;
+        assert_eq!(theme.bg, "#3c3836");
+        assert_eq!(theme.fg, "#ebdbb2");
+        assert!(theme.active_bg.is_none());
+        assert!(theme.icon.is_none());
+    }
+
+    #[test]
+    fn test_sidebar_config() {
+        let yaml = r#"
+sidebar:
+  width: 30
+  theme: rose-pine-dawn
+  show_panes: true
+"#;
+        let config = Config::from_yaml(yaml).expect("should parse");
+        assert_eq!(config.sidebar.width, 30);
+        assert_eq!(config.sidebar.theme, "rose-pine-dawn");
+        assert!(config.sidebar.show_panes);
+        assert_eq!(config.sidebar.sort_by, "group");
+    }
+
+    #[test]
+    fn test_indicator_config() {
+        let yaml = r#"
+indicators:
+  busy:
+    enabled: false
+    icon: "●"
+  bell:
+    enabled: true
+"#;
+        let config = Config::from_yaml(yaml).expect("should parse");
+        assert!(!config.indicators.busy.enabled);
+        assert_eq!(config.indicators.busy.icon, Some("●".into()));
+        assert!(config.indicators.bell.enabled);
+        assert!(config.indicators.input.enabled);
+    }
+
+    #[test]
+    fn test_load_missing_file_returns_default() {
+        let prev = std::env::var("TABBY_ZJ_CONFIG_DIR").ok();
+        std::env::set_var(
+            "TABBY_ZJ_CONFIG_DIR",
+            "/tmp/tabby-zj-nonexistent-test-dir-abc123",
+        );
+        let config = Config::load();
+        match prev {
+            Some(v) => std::env::set_var("TABBY_ZJ_CONFIG_DIR", v),
+            None => std::env::remove_var("TABBY_ZJ_CONFIG_DIR"),
+        }
+        assert_eq!(config.groups.len(), 0);
+        assert_eq!(config.sidebar.width, 25);
+    }
+
+    #[test]
+    fn test_load_from_env_dir() {
+        use std::io::Write;
+        let prev = std::env::var("TABBY_ZJ_CONFIG_DIR").ok();
+        let dir = std::env::temp_dir().join("tabby-zj-test-load-env");
+        std::fs::create_dir_all(&dir).expect("create dir");
+        let config_path = dir.join("config.yaml");
+        let mut f = std::fs::File::create(&config_path).expect("create");
+        write!(f, "sidebar:\n  width: 42\n").expect("write");
+
+        std::env::set_var("TABBY_ZJ_CONFIG_DIR", dir.to_str().unwrap());
+        let config = Config::load();
+        let _ = std::fs::remove_dir_all(&dir);
+        match prev {
+            Some(v) => std::env::set_var("TABBY_ZJ_CONFIG_DIR", v),
+            None => std::env::remove_var("TABBY_ZJ_CONFIG_DIR"),
+        }
+        assert_eq!(config.sidebar.width, 42);
+    }
+}

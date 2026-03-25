@@ -1,0 +1,8 @@
+layout {
+    pane split_direction="vertical" {
+        pane size=25 borderless=true {
+            plugin location="file:target/wasm32-wasip1/debug/tabby_zj.wasm"
+        }
+        pane
+    }
+}
