@@ -15,9 +15,13 @@ use state::PluginState;
 use std::collections::BTreeMap;
 use zellij_tile::prelude::*;
 
+// Only compile the plugin entry point when not running tests.
+// `register_plugin!` and the manual `_start` stub both define a `_start`
+// symbol which conflicts with the host linker on Linux during `cargo test`.
+#[cfg(not(test))]
 register_plugin!(TabbyZjPlugin);
 
-// Required for Zellij WASM compatibility
+#[cfg(not(test))]
 #[no_mangle]
 pub extern "C" fn _start() {}
 
