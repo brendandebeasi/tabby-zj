@@ -1,9 +1,74 @@
 use crate::click::ClickRegion;
 use crate::config::Config;
 use crate::indicators::IndicatorState;
+use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, HashMap, HashSet};
+use std::fmt;
 use std::path::PathBuf;
+use std::str::FromStr;
 use zellij_tile::prelude::*;
+
+/// Typed composite key for per-tab state maps.
+/// Serializes/deserializes as `"name::position"` for backward compat with state.json.
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct TabKey {
+    pub name: String,
+    pub position: usize,
+}
+
+impl TabKey {
+    pub fn new(name: &str, position: usize) -> Self {
+        TabKey {
+            name: name.to_string(),
+            position,
+        }
+    }
+}
+
+impl fmt::Display for TabKey {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}::{}", self.name, self.position)
+    }
+}
+
+#[derive(Debug, PartialEq, Eq)]
+pub struct TabKeyParseError;
+
+impl fmt::Display for TabKeyParseError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "invalid TabKey format, expected 'name::position'")
+    }
+}
+
+impl FromStr for TabKey {
+    type Err = TabKeyParseError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        // Split on last "::" to allow tab names that contain "::"
+        let sep = "::";
+        let idx = s.rfind(sep).ok_or(TabKeyParseError)?;
+        let name = &s[..idx];
+        let pos_str = &s[idx + sep.len()..];
+        let position = pos_str.parse::<usize>().map_err(|_| TabKeyParseError)?;
+        Ok(TabKey {
+            name: name.to_string(),
+            position,
+        })
+    }
+}
+
+impl Serialize for TabKey {
+    fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        serializer.serialize_str(&self.to_string())
+    }
+}
+
+impl<'de> Deserialize<'de> for TabKey {
+    fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        let s = String::deserialize(deserializer)?;
+        s.parse::<TabKey>().map_err(serde::de::Error::custom)
+    }
+}
 
 #[derive(Clone, Default)]
 pub struct TabEntry {

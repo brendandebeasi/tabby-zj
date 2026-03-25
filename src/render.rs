@@ -8,6 +8,7 @@ use zellij_tile::prelude::*;
 
 pub const PINNED_HEIGHT: usize = 2;
 
+#[allow(dead_code)]
 fn format_sidebar_line(bg: &str, fg: &str, text: &str, cursor: bool) -> String {
     let cursor_mark = if cursor { colors::REVERSE } else { "" };
     format!("{}{}{}{}{}", bg, fg, cursor_mark, text, colors::RESET)
