@@ -50,6 +50,17 @@ pub fn handle_event(state: &mut PluginState, event: Event) -> bool {
                     }
                 }
             }
+            if state.config.widgets.pet.enabled {
+                if let Some(ref mut pet) = state.pet_state {
+                    pet.tick();
+                }
+                if let Some(ref mut anim) = state.pet_animation {
+                    if let Some(ref pet) = state.pet_state {
+                        anim.set_mood(&pet.mood);
+                    }
+                    anim.tick();
+                }
+            }
             set_timeout(1.0);
             true
         }
@@ -614,6 +625,9 @@ pub enum PipeCommand {
     SetQuota {
         data: String,
     },
+    PetAction {
+        action: String,
+    },
     Unknown(String),
 }
 
@@ -673,6 +687,9 @@ pub fn parse_pipe(payload: &str, args: &std::collections::BTreeMap<String, Strin
                 emoji: parts[2].to_string(),
             }
         }
+        "pet" => PipeCommand::PetAction {
+            action: rest.to_string(),
+        },
         "busy" | "bell" | "input" => {
             let value = rest == "1" || rest == "true" || rest == "on";
             // pane_id: prefer args map, then fall back to third colon-segment
@@ -737,6 +754,20 @@ pub fn handle_pipe(state: &mut PluginState, pipe_message: PipeMessage) -> bool {
             let qd = crate::widgets::quota::parse_quota_data(&data);
             state.quota = Some(qd);
             true
+        }
+        PipeCommand::PetAction { action } => {
+            if let Some(ref mut pet) = state.pet_state {
+                match action.as_str() {
+                    "feed" => pet.feed(),
+                    "pet" => pet.pet(),
+                    "play" => pet.play(),
+                    _ => return false,
+                }
+                crate::pet::save_pet(pet);
+                true
+            } else {
+                false
+            }
         }
         PipeCommand::Unknown(_) => false,
     }

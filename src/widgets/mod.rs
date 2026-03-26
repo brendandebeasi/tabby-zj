@@ -32,6 +32,18 @@ pub fn render_pinned_lines(state: &PluginState, cols: usize) -> Vec<String> {
         }
     }
 
+    if state.config.widgets.pet.enabled {
+        let frame = state
+            .pet_animation
+            .as_ref()
+            .map(|a| a.current_frame())
+            .unwrap_or("(=^·ω·^=)");
+        if let Some(ref pet) = state.pet_state {
+            let pet_lines = crate::pet::render_pet(pet, frame, cols);
+            lines.extend(pet_lines);
+        }
+    }
+
     lines
 }
 

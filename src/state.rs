@@ -118,6 +118,8 @@ pub struct PluginState {
     pub git_status: Option<GitStatus>,
     pub stats: Option<crate::widgets::stats::StatsData>,
     pub quota: Option<crate::widgets::quota::QuotaData>,
+    pub pet_state: Option<crate::pet::PetState>,
+    pub pet_animation: Option<crate::pet::Animation>,
     pub pane_cwds: HashMap<u32, PathBuf>,
     pub click_regions: Vec<ClickRegion>,
 }
@@ -176,6 +178,15 @@ impl PluginState {
         self.custom_colors = state.custom_colors;
         self.markers = state.markers;
         self.sidebar_collapsed = state.sidebar_collapsed;
+
+        if self.config.widgets.pet.enabled {
+            let pet = crate::pet::load_pet()
+                .unwrap_or_else(|| crate::pet::PetState::new(&self.config.widgets.pet.name, 0));
+            let mood = pet.mood.clone();
+            self.pet_state = Some(pet);
+            let frames = crate::pet::animation::frames_for_mood(&mood);
+            self.pet_animation = Some(crate::pet::Animation::new(frames, 3));
+        }
     }
 
     #[allow(dead_code)]

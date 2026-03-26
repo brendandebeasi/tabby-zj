@@ -158,6 +158,8 @@ pub struct WidgetConfig {
     pub stats: StatsWidgetConfig,
     #[serde(default)]
     pub quota: QuotaWidgetConfig,
+    #[serde(default)]
+    pub pet: PetWidgetConfig,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -235,6 +237,27 @@ pub struct QuotaWidgetConfig {
 impl Default for QuotaWidgetConfig {
     fn default() -> Self {
         Self { enabled: false }
+    }
+}
+
+fn default_pet_name() -> String {
+    "Whiskers".into()
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PetWidgetConfig {
+    #[serde(default)]
+    pub enabled: bool,
+    #[serde(default = "default_pet_name")]
+    pub name: String,
+}
+
+impl Default for PetWidgetConfig {
+    fn default() -> Self {
+        Self {
+            enabled: false,
+            name: default_pet_name(),
+        }
     }
 }
 

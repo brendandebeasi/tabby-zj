@@ -14,6 +14,9 @@ pub fn pinned_height(state: &PluginState) -> usize {
     if state.config.widgets.quota.enabled {
         h += 1;
     }
+    if state.config.widgets.pet.enabled {
+        h += 3;
+    }
     h
 }
 
