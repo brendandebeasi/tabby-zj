@@ -1875,4 +1875,94 @@ mod tests {
             "Set Color submenu should contain Red color option"
         );
     }
+
+    #[test]
+    fn test_picker_typing_filters_emoji() {
+        let mut state = PluginState::default();
+        state.active_picker = Some(crate::picker::EmojiPickerState::new(0));
+        handle_key(&mut state, make_key(BareKey::Char('c')));
+        handle_key(&mut state, make_key(BareKey::Char('a')));
+        handle_key(&mut state, make_key(BareKey::Char('t')));
+        let picker = state.active_picker.as_ref().unwrap();
+        assert_eq!(picker.query, "cat");
+        assert!(!picker.results.is_empty());
+        for emoji in &picker.results {
+            assert!(emoji.name().to_lowercase().contains("cat"));
+        }
+    }
+
+    #[test]
+    fn test_picker_backspace_removes_char() {
+        let mut state = PluginState::default();
+        state.active_picker = Some(crate::picker::EmojiPickerState::new(0));
+        handle_key(&mut state, make_key(BareKey::Char('c')));
+        handle_key(&mut state, make_key(BareKey::Char('a')));
+        handle_key(&mut state, make_key(BareKey::Char('t')));
+        handle_key(&mut state, make_key(BareKey::Backspace));
+        let picker = state.active_picker.as_ref().unwrap();
+        assert_eq!(picker.query, "ca");
+    }
+
+    #[test]
+    fn test_picker_enter_sets_marker() {
+        let mut state = make_state_with_tab("api", 0);
+        let mut picker = crate::picker::EmojiPickerState::new(0);
+        picker.query = "cat".into();
+        picker.filter();
+        state.active_picker = Some(picker);
+        handle_key(&mut state, make_key(BareKey::Enter));
+        assert!(
+            state.active_picker.is_none(),
+            "picker should be closed after Enter"
+        );
+        let key = TabKey::new("api", 0);
+        assert!(state.markers.contains_key(&key), "marker should be set");
+    }
+
+    #[test]
+    fn test_picker_esc_clears_picker() {
+        let mut state = PluginState::default();
+        state.active_picker = Some(crate::picker::EmojiPickerState::new(0));
+        handle_key(&mut state, make_key(BareKey::Esc));
+        assert!(state.active_picker.is_none());
+    }
+
+    #[test]
+    fn test_picker_down_increments_selected() {
+        let mut state = PluginState::default();
+        state.active_picker = Some(crate::picker::EmojiPickerState::new(0));
+        handle_key(&mut state, make_key(BareKey::Down));
+        assert_eq!(state.active_picker.as_ref().unwrap().selected, 1);
+    }
+
+    #[test]
+    fn test_picker_up_does_not_go_below_zero() {
+        let mut state = PluginState::default();
+        state.active_picker = Some(crate::picker::EmojiPickerState::new(0));
+        handle_key(&mut state, make_key(BareKey::Up));
+        assert_eq!(state.active_picker.as_ref().unwrap().selected, 0);
+    }
+
+    #[test]
+    fn test_picker_active_intercepts_keys_before_cursor() {
+        let mut state = PluginState::default();
+        state.active_picker = Some(crate::picker::EmojiPickerState::new(0));
+        state.click_regions = vec![
+            ClickRegion {
+                line: 0,
+                target: ClickTarget::Tab(0),
+            },
+            ClickRegion {
+                line: 1,
+                target: ClickTarget::Tab(1),
+            },
+        ];
+        state.cursor_position = Some(0);
+        handle_key(&mut state, make_key(BareKey::Down));
+        assert_eq!(
+            state.cursor_position,
+            Some(0),
+            "cursor should not move while picker is active"
+        );
+    }
 }
