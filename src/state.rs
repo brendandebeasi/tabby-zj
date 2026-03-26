@@ -116,6 +116,7 @@ pub struct PluginState {
     #[allow(dead_code)]
     pub last_save_tick: u64,
     pub git_status: Option<GitStatus>,
+    pub stats: Option<crate::widgets::stats::StatsData>,
     pub pane_cwds: HashMap<u32, PathBuf>,
     pub click_regions: Vec<ClickRegion>,
 }

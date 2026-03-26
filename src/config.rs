@@ -154,6 +154,8 @@ pub struct WidgetConfig {
     pub clock: ClockWidgetConfig,
     #[serde(default)]
     pub git: GitWidgetConfig,
+    #[serde(default)]
+    pub stats: StatsWidgetConfig,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -197,6 +199,27 @@ impl Default for GitWidgetConfig {
         Self {
             enabled: true,
             interval_secs: default_git_interval(),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct StatsWidgetConfig {
+    #[serde(default)]
+    pub enabled: bool,
+    #[serde(default = "default_stats_interval")]
+    pub interval_secs: u64,
+}
+
+fn default_stats_interval() -> u64 {
+    30
+}
+
+impl Default for StatsWidgetConfig {
+    fn default() -> Self {
+        Self {
+            enabled: false,
+            interval_secs: default_stats_interval(),
         }
     }
 }
@@ -299,6 +322,28 @@ groups:
         assert!(config.widgets.clock.enabled);
         assert_eq!(config.widgets.clock.format, "%H:%M:%S");
         assert!(config.widgets.git.enabled);
+        assert!(!config.widgets.stats.enabled);
+        assert_eq!(config.widgets.stats.interval_secs, 30);
+    }
+
+    #[test]
+    fn test_stats_widget_defaults() {
+        let config = Config::default();
+        assert!(!config.widgets.stats.enabled);
+        assert_eq!(config.widgets.stats.interval_secs, 30);
+    }
+
+    #[test]
+    fn test_stats_widget_parses_from_yaml() {
+        let yaml = r#"
+widgets:
+  stats:
+    enabled: true
+    interval_secs: 7
+"#;
+        let config = Config::from_yaml(yaml).expect("should parse");
+        assert!(config.widgets.stats.enabled);
+        assert_eq!(config.widgets.stats.interval_secs, 7);
     }
 
     #[test]

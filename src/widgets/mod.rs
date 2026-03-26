@@ -1,5 +1,6 @@
 pub mod clock;
 pub mod git;
+pub mod stats;
 
 use crate::state::PluginState;
 
@@ -23,6 +24,18 @@ pub fn render_pinned(state: &PluginState, cols: usize) -> String {
     } else {
         String::new()
     };
+
+    let stats = if state.config.widgets.stats.enabled {
+        stats::render_stats(&state.stats)
+    } else {
+        String::new()
+    };
+
+    let right = [right, stats]
+        .into_iter()
+        .filter(|s| !s.is_empty())
+        .collect::<Vec<_>>()
+        .join("  ");
 
     let left_len = left.chars().count();
     let right_len = right.chars().count();
@@ -114,5 +127,23 @@ mod tests {
         assert!(line.contains("dev"), "branch should appear");
         let re = regex::Regex::new(r"\d{2}:\d{2}").expect("valid static regex pattern");
         assert!(re.is_match(&line), "clock should appear");
+    }
+
+    #[test]
+    fn test_render_pinned_stats_on_right() {
+        let mut state = PluginState::default();
+        state.config.widgets.clock.enabled = false;
+        state.config.widgets.git.enabled = false;
+        state.config.widgets.stats.enabled = true;
+        state.stats = Some(stats::StatsData {
+            cpu_pct: Some(23.0),
+            mem_used_gb: Some(4.2),
+            mem_total_gb: Some(16.0),
+            battery_pct: Some(87),
+        });
+        let line = render_pinned(&state, 40);
+        assert!(line.contains("CPU:23%"));
+        assert!(line.contains("MEM:4.2G"));
+        assert!(line.contains("BAT:87%"));
     }
 }

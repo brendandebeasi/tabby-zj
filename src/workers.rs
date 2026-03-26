@@ -2,6 +2,7 @@ use std::collections::BTreeMap;
 use std::path::PathBuf;
 
 pub const CTX_TYPE_GIT: &str = "git_status";
+pub const CTX_TYPE_STATS: &str = "stats";
 pub const GIT_POLL_INTERVAL: u64 = 30;
 
 pub fn request_git_status(cwd: PathBuf) {
@@ -12,6 +13,27 @@ pub fn request_git_status(cwd: PathBuf) {
         use zellij_tile::prelude::run_command_with_env_variables_and_cwd;
         run_command_with_env_variables_and_cwd(
             &["git", "status", "--porcelain=v1", "-b"],
+            BTreeMap::new(),
+            cwd,
+            ctx,
+        );
+    }
+    #[cfg(test)]
+    let _ = (cwd, ctx);
+}
+
+pub fn request_stats(cwd: PathBuf) {
+    let mut ctx = BTreeMap::new();
+    ctx.insert("type".to_string(), CTX_TYPE_STATS.to_string());
+    #[cfg(not(test))]
+    {
+        use zellij_tile::prelude::run_command_with_env_variables_and_cwd;
+        run_command_with_env_variables_and_cwd(
+            &[
+                "sh",
+                "-lc",
+                "cpu=$(top -l 1 | awk -F'[:,% ]+' '/CPU usage/ {printf \"%.0f\", $3 + $5; exit}'); mem_total=$(sysctl -n hw.memsize | awk '{printf \"%.1f\", $1/1073741824}'); mem_used=$(vm_stat | awk '/page size of/ {ps=$8; gsub(\"\\.\",\"\",ps)} /Pages active/ {a=$3; gsub(\"\\.\",\"\",a)} /Pages wired down/ {w=$4; gsub(\"\\.\",\"\",w)} /Pages occupied by compressor/ {c=$5; gsub(\"\\.\",\"\",c)} /Pages speculative/ {s=$3; gsub(\"\\.\",\"\",s)} END {if (ps==\"\") ps=4096; used=(a+w+c+s)*ps/1073741824; printf \"%.1f\", used}'); bat=$(pmset -g batt | awk -F';' 'NR==2 {gsub(/[^0-9]/,\"\",$1); print $1}'); printf 'cpu=%s mem=%s/%s bat=%s\n' \"$cpu\" \"$mem_used\" \"$mem_total\" \"$bat\"",
+            ],
             BTreeMap::new(),
             cwd,
             ctx,

@@ -42,6 +42,14 @@ pub fn handle_event(state: &mut PluginState, event: Event) -> bool {
                     workers::request_git_status(cwd);
                 }
             }
+            if state.config.widgets.stats.enabled {
+                let stats_interval = state.config.widgets.stats.interval_secs.max(1);
+                if state.tick_count % stats_interval == 1 {
+                    if let Some(cwd) = state.pane_cwds.values().next().cloned() {
+                        workers::request_stats(cwd);
+                    }
+                }
+            }
             set_timeout(1.0);
             true
         }
@@ -55,20 +63,26 @@ pub fn handle_event(state: &mut PluginState, event: Event) -> bool {
         Event::Mouse(mouse) => handle_mouse(state, mouse),
         Event::Key(key) => handle_key(state, key),
         Event::RunCommandResult(exit_code, stdout, _stderr, ctx) => {
-            if ctx
-                .get("type")
-                .map(|t| t == workers::CTX_TYPE_GIT)
-                .unwrap_or(false)
-            {
-                if exit_code == Some(0) {
-                    let text = String::from_utf8_lossy(&stdout).into_owned();
-                    state.git_status = Some(workers::parse_git_status(&text));
-                } else {
-                    state.git_status = None;
+            match ctx.get("type").map(String::as_str) {
+                Some(workers::CTX_TYPE_GIT) => {
+                    if exit_code == Some(0) {
+                        let text = String::from_utf8_lossy(&stdout).into_owned();
+                        state.git_status = Some(workers::parse_git_status(&text));
+                    } else {
+                        state.git_status = None;
+                    }
+                    true
                 }
-                true
-            } else {
-                false
+                Some(workers::CTX_TYPE_STATS) => {
+                    if exit_code == Some(0) {
+                        let text = String::from_utf8_lossy(&stdout).into_owned();
+                        state.stats = Some(crate::widgets::stats::parse_stats_output(&text));
+                    } else {
+                        state.stats = None;
+                    }
+                    true
+                }
+                _ => false,
             }
         }
         _ => false,
