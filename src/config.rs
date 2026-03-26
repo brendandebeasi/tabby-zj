@@ -502,4 +502,53 @@ keybindings:
         }
         assert_eq!(config.sidebar.width, 42);
     }
+
+    #[test]
+    fn test_quota_widget_defaults() {
+        let config = Config::default();
+        assert!(!config.widgets.quota.enabled);
+    }
+
+    #[test]
+    fn test_quota_widget_parses_from_yaml() {
+        let yaml = r#"
+widgets:
+  quota:
+    enabled: true
+"#;
+        let config = Config::from_yaml(yaml).expect("should parse");
+        assert!(config.widgets.quota.enabled);
+    }
+
+    #[test]
+    fn test_pet_widget_defaults() {
+        let config = Config::default();
+        assert!(!config.widgets.pet.enabled);
+        assert_eq!(config.widgets.pet.name, "Whiskers");
+    }
+
+    #[test]
+    fn test_pet_widget_parses_from_yaml() {
+        let yaml = r#"
+widgets:
+  pet:
+    enabled: true
+    name: "Luna"
+"#;
+        let config = Config::from_yaml(yaml).expect("should parse");
+        assert!(config.widgets.pet.enabled);
+        assert_eq!(config.widgets.pet.name, "Luna");
+    }
+
+    #[test]
+    fn test_pet_widget_partial_defaults_name() {
+        let yaml = r#"
+widgets:
+  pet:
+    enabled: true
+"#;
+        let config = Config::from_yaml(yaml).expect("should parse");
+        assert!(config.widgets.pet.enabled);
+        assert_eq!(config.widgets.pet.name, "Whiskers");
+    }
 }

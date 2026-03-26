@@ -192,4 +192,98 @@ mod tests {
         assert!(lines.len() >= 2);
         assert!(lines[1].contains("CPU:10%"));
     }
+
+    #[test]
+    fn test_render_pinned_lines_includes_quota_when_enabled() {
+        let mut state = PluginState::default();
+        state.config.widgets.quota.enabled = true;
+        state.quota = Some(quota::QuotaData {
+            remaining: Some(450),
+            limit: Some(1000),
+            resets: Some("2h".into()),
+            label: None,
+        });
+        let lines = render_pinned_lines(&state, 30);
+        assert!(lines.len() >= 2);
+        assert!(
+            lines.iter().any(|l| l.contains("450/1000")),
+            "quota line should appear"
+        );
+    }
+
+    #[test]
+    fn test_render_pinned_lines_no_quota_when_disabled() {
+        let mut state = PluginState::default();
+        state.config.widgets.quota.enabled = false;
+        state.quota = Some(quota::QuotaData {
+            remaining: Some(450),
+            limit: Some(1000),
+            resets: None,
+            label: None,
+        });
+        let lines = render_pinned_lines(&state, 30);
+        assert!(
+            !lines.iter().any(|l| l.contains("450/1000")),
+            "quota should not appear when disabled"
+        );
+    }
+
+    #[test]
+    fn test_render_pinned_lines_includes_pet_when_enabled() {
+        let mut state = PluginState::default();
+        state.config.widgets.pet.enabled = true;
+        state.pet_state = Some(crate::pet::PetState::new("Mochi", 0));
+        state.pet_animation = Some(crate::pet::Animation::new(
+            crate::pet::animation::frames_for_mood(&crate::pet::Mood::Content),
+            3,
+        ));
+        let lines = render_pinned_lines(&state, 30);
+        assert!(
+            lines.iter().any(|l| l.contains("Mochi")),
+            "pet name should appear: {:?}",
+            lines
+        );
+    }
+
+    #[test]
+    fn test_render_pinned_lines_no_pet_when_disabled() {
+        let mut state = PluginState::default();
+        state.config.widgets.pet.enabled = false;
+        state.pet_state = Some(crate::pet::PetState::new("Mochi", 0));
+        let lines = render_pinned_lines(&state, 30);
+        assert!(
+            !lines.iter().any(|l| l.contains("Mochi")),
+            "pet should not appear when disabled"
+        );
+    }
+
+    #[test]
+    fn test_render_pinned_lines_all_widgets_together() {
+        let mut state = PluginState::default();
+        state.config.widgets.clock.enabled = true;
+        state.config.widgets.stats.enabled = true;
+        state.stats = Some(stats::StatsData {
+            cpu_pct: Some(50.0),
+            mem_used_gb: None,
+            mem_total_gb: None,
+            battery_pct: None,
+        });
+        state.config.widgets.quota.enabled = true;
+        state.quota = Some(quota::QuotaData {
+            remaining: Some(99),
+            limit: Some(200),
+            resets: None,
+            label: None,
+        });
+        state.config.widgets.pet.enabled = true;
+        state.pet_state = Some(crate::pet::PetState::new("Luna", 0));
+        state.pet_animation = Some(crate::pet::Animation::new(
+            crate::pet::animation::frames_for_mood(&crate::pet::Mood::Happy),
+            3,
+        ));
+        let lines = render_pinned_lines(&state, 40);
+        assert!(lines.iter().any(|l| l.contains("CPU:50%")), "stats");
+        assert!(lines.iter().any(|l| l.contains("99/200")), "quota");
+        assert!(lines.iter().any(|l| l.contains("Luna")), "pet name");
+    }
 }

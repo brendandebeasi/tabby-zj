@@ -1354,6 +1354,106 @@ mod tests {
         assert!(result);
     }
 
+    #[test]
+    fn test_pipe_quota_sets_state() {
+        let mut state = PluginState::default();
+        state.config.widgets.quota.enabled = true;
+        let result = handle_pipe(
+            &mut state,
+            make_pipe("quota:remaining=450,limit=1000,resets=2h30m"),
+        );
+        assert!(result);
+        let q = state.quota.expect("quota should be set");
+        assert_eq!(q.remaining, Some(450));
+        assert_eq!(q.limit, Some(1000));
+        assert_eq!(q.resets.as_deref(), Some("2h30m"));
+    }
+
+    #[test]
+    fn test_pipe_quota_overwrites_previous() {
+        let mut state = PluginState::default();
+        handle_pipe(&mut state, make_pipe("quota:remaining=100,limit=500"));
+        handle_pipe(&mut state, make_pipe("quota:remaining=200,limit=800"));
+        let q = state.quota.expect("quota should be set");
+        assert_eq!(q.remaining, Some(200));
+        assert_eq!(q.limit, Some(800));
+    }
+
+    #[test]
+    fn test_pipe_pet_feed_increases_hunger() {
+        let mut state = PluginState::default();
+        state.config.widgets.pet.enabled = true;
+        let mut pet = crate::pet::PetState::default();
+        pet.hunger = 40.0;
+        state.pet_state = Some(pet);
+        let result = handle_pipe(&mut state, make_pipe("pet:feed"));
+        assert!(result);
+        assert_eq!(state.pet_state.as_ref().unwrap().hunger, 70.0);
+    }
+
+    #[test]
+    fn test_pipe_pet_pet_increases_happiness() {
+        let mut state = PluginState::default();
+        state.config.widgets.pet.enabled = true;
+        let mut pet = crate::pet::PetState::default();
+        pet.happiness = 50.0;
+        state.pet_state = Some(pet);
+        let result = handle_pipe(&mut state, make_pipe("pet:pet"));
+        assert!(result);
+        assert_eq!(state.pet_state.as_ref().unwrap().happiness, 65.0);
+    }
+
+    #[test]
+    fn test_pipe_pet_play_costs_energy() {
+        let mut state = PluginState::default();
+        state.config.widgets.pet.enabled = true;
+        let mut pet = crate::pet::PetState::default();
+        pet.energy = 50.0;
+        pet.happiness = 50.0;
+        state.pet_state = Some(pet);
+        let result = handle_pipe(&mut state, make_pipe("pet:play"));
+        assert!(result);
+        assert_eq!(state.pet_state.as_ref().unwrap().energy, 40.0);
+        assert_eq!(state.pet_state.as_ref().unwrap().happiness, 70.0);
+    }
+
+    #[test]
+    fn test_pipe_pet_unknown_action_returns_false() {
+        let mut state = PluginState::default();
+        state.config.widgets.pet.enabled = true;
+        state.pet_state = Some(crate::pet::PetState::default());
+        let result = handle_pipe(&mut state, make_pipe("pet:unknown"));
+        assert!(!result);
+    }
+
+    #[test]
+    fn test_pipe_pet_no_state_returns_false() {
+        let mut state = PluginState::default();
+        assert!(state.pet_state.is_none());
+        let result = handle_pipe(&mut state, make_pipe("pet:feed"));
+        assert!(!result);
+    }
+
+    #[test]
+    fn test_parse_pipe_pet_feed() {
+        assert_eq!(
+            parse_pipe("pet:feed", &empty_args()),
+            PipeCommand::PetAction {
+                action: "feed".into()
+            }
+        );
+    }
+
+    #[test]
+    fn test_parse_pipe_pet_play() {
+        assert_eq!(
+            parse_pipe("pet:play", &empty_args()),
+            PipeCommand::PetAction {
+                action: "play".into()
+            }
+        );
+    }
+
     fn empty_args() -> std::collections::BTreeMap<String, String> {
         std::collections::BTreeMap::new()
     }

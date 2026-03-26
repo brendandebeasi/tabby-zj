@@ -1557,4 +1557,40 @@ mod tests {
             "row 1 should contain the submenu item content"
         );
     }
+
+    #[test]
+    fn test_pinned_height_base_is_2() {
+        let state = PluginState::default();
+        assert_eq!(pinned_height(&state), 2);
+    }
+
+    #[test]
+    fn test_pinned_height_stats_adds_1() {
+        let mut state = PluginState::default();
+        state.config.widgets.stats.enabled = true;
+        assert_eq!(pinned_height(&state), 3);
+    }
+
+    #[test]
+    fn test_pinned_height_quota_adds_1() {
+        let mut state = PluginState::default();
+        state.config.widgets.quota.enabled = true;
+        assert_eq!(pinned_height(&state), 3);
+    }
+
+    #[test]
+    fn test_pinned_height_pet_adds_3() {
+        let mut state = PluginState::default();
+        state.config.widgets.pet.enabled = true;
+        assert_eq!(pinned_height(&state), 5);
+    }
+
+    #[test]
+    fn test_pinned_height_all_widgets() {
+        let mut state = PluginState::default();
+        state.config.widgets.stats.enabled = true;
+        state.config.widgets.quota.enabled = true;
+        state.config.widgets.pet.enabled = true;
+        assert_eq!(pinned_height(&state), 7);
+    }
 }
