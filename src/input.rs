@@ -1076,8 +1076,236 @@ mod tests {
     #[test]
     fn test_pipe_config_any_value_reloads() {
         let mut state = PluginState::default();
-        // Any value after "config:" triggers reload
         let result = handle_pipe(&mut state, make_pipe("config:1"));
         assert!(result);
+    }
+
+    fn empty_args() -> std::collections::BTreeMap<String, String> {
+        std::collections::BTreeMap::new()
+    }
+
+    fn args_with_pane(pane_id: &str) -> std::collections::BTreeMap<String, String> {
+        let mut m = std::collections::BTreeMap::new();
+        m.insert("pane_id".into(), pane_id.into());
+        m
+    }
+
+    #[test]
+    fn test_parse_pipe_busy_on() {
+        assert_eq!(
+            parse_pipe("busy:1", &empty_args()),
+            PipeCommand::SetIndicator {
+                indicator: "busy".into(),
+                value: true,
+                pane_id: None,
+            }
+        );
+    }
+
+    #[test]
+    fn test_parse_pipe_busy_off() {
+        assert_eq!(
+            parse_pipe("busy:0", &empty_args()),
+            PipeCommand::SetIndicator {
+                indicator: "busy".into(),
+                value: false,
+                pane_id: None,
+            }
+        );
+    }
+
+    #[test]
+    fn test_parse_pipe_busy_true_variant() {
+        assert_eq!(
+            parse_pipe("busy:true", &empty_args()),
+            PipeCommand::SetIndicator {
+                indicator: "busy".into(),
+                value: true,
+                pane_id: None,
+            }
+        );
+    }
+
+    #[test]
+    fn test_parse_pipe_bell_on() {
+        assert_eq!(
+            parse_pipe("bell:1", &empty_args()),
+            PipeCommand::SetIndicator {
+                indicator: "bell".into(),
+                value: true,
+                pane_id: None,
+            }
+        );
+    }
+
+    #[test]
+    fn test_parse_pipe_input_on() {
+        assert_eq!(
+            parse_pipe("input:1", &empty_args()),
+            PipeCommand::SetIndicator {
+                indicator: "input".into(),
+                value: true,
+                pane_id: None,
+            }
+        );
+    }
+
+    #[test]
+    fn test_parse_pipe_indicator_pane_id_from_args() {
+        assert_eq!(
+            parse_pipe("busy:1", &args_with_pane("%42")),
+            PipeCommand::SetIndicator {
+                indicator: "busy".into(),
+                value: true,
+                pane_id: Some("%42".into()),
+            }
+        );
+    }
+
+    #[test]
+    fn test_parse_pipe_indicator_pane_id_from_third_segment() {
+        assert_eq!(
+            parse_pipe("busy:1:%99", &empty_args()),
+            PipeCommand::SetIndicator {
+                indicator: "busy".into(),
+                value: true,
+                pane_id: Some("%99".into()),
+            }
+        );
+    }
+
+    #[test]
+    fn test_parse_pipe_indicator_args_pane_id_wins_over_segment() {
+        assert_eq!(
+            parse_pipe("busy:1:%99", &args_with_pane("%42")),
+            PipeCommand::SetIndicator {
+                indicator: "busy".into(),
+                value: true,
+                pane_id: Some("%42".into()),
+            }
+        );
+    }
+
+    #[test]
+    fn test_parse_pipe_collapse_on() {
+        assert_eq!(
+            parse_pipe("collapse:1", &empty_args()),
+            PipeCommand::Collapse(true)
+        );
+    }
+
+    #[test]
+    fn test_parse_pipe_collapse_off() {
+        assert_eq!(
+            parse_pipe("collapse:0", &empty_args()),
+            PipeCommand::Collapse(false)
+        );
+    }
+
+    #[test]
+    fn test_parse_pipe_toggle() {
+        assert_eq!(parse_pipe("toggle:1", &empty_args()), PipeCommand::Toggle);
+    }
+
+    #[test]
+    fn test_parse_pipe_toggle_no_value() {
+        assert_eq!(parse_pipe("toggle", &empty_args()), PipeCommand::Toggle);
+    }
+
+    #[test]
+    fn test_parse_pipe_config_reload() {
+        assert_eq!(
+            parse_pipe("config:reload", &empty_args()),
+            PipeCommand::ReloadConfig
+        );
+    }
+
+    #[test]
+    fn test_parse_pipe_config_any_value() {
+        assert_eq!(
+            parse_pipe("config:1", &empty_args()),
+            PipeCommand::ReloadConfig
+        );
+    }
+
+    #[test]
+    fn test_parse_pipe_config_no_value() {
+        assert_eq!(
+            parse_pipe("config", &empty_args()),
+            PipeCommand::ReloadConfig
+        );
+    }
+
+    #[test]
+    fn test_parse_pipe_quota() {
+        assert_eq!(
+            parse_pipe("quota:somedata", &empty_args()),
+            PipeCommand::SetQuota {
+                data: "somedata".into()
+            }
+        );
+    }
+
+    #[test]
+    fn test_parse_pipe_quota_with_colons() {
+        assert_eq!(
+            parse_pipe("quota:a:b", &empty_args()),
+            PipeCommand::SetQuota { data: "a:b".into() }
+        );
+    }
+
+    #[test]
+    fn test_parse_pipe_marker() {
+        assert_eq!(
+            parse_pipe("marker:mykey:🔥", &empty_args()),
+            PipeCommand::SetMarker {
+                tab_key: "mykey".into(),
+                emoji: "🔥".into(),
+            }
+        );
+    }
+
+    #[test]
+    fn test_parse_pipe_marker_missing_emoji_is_unknown() {
+        assert_eq!(
+            parse_pipe("marker:mykey", &empty_args()),
+            PipeCommand::Unknown("marker:mykey".into())
+        );
+    }
+
+    #[test]
+    fn test_parse_pipe_empty_string_is_unknown() {
+        assert_eq!(
+            parse_pipe("", &empty_args()),
+            PipeCommand::Unknown("".into())
+        );
+    }
+
+    #[test]
+    fn test_parse_pipe_no_colon_is_unknown() {
+        assert_eq!(
+            parse_pipe("nocolon", &empty_args()),
+            PipeCommand::Unknown("nocolon".into())
+        );
+    }
+
+    #[test]
+    fn test_parse_pipe_unknown_command() {
+        assert_eq!(
+            parse_pipe("unknown:1", &empty_args()),
+            PipeCommand::Unknown("unknown:1".into())
+        );
+    }
+
+    #[test]
+    fn test_parse_pipe_busy_not_a_bool_is_false_value() {
+        assert_eq!(
+            parse_pipe("busy:notabool", &empty_args()),
+            PipeCommand::SetIndicator {
+                indicator: "busy".into(),
+                value: false,
+                pane_id: None,
+            }
+        );
     }
 }
