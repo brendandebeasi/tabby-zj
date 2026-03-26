@@ -2,7 +2,7 @@ use crate::click::ClickTarget;
 use crate::config::KeybindingsConfig;
 use crate::persistence;
 use crate::render::PINNED_HEIGHT;
-use crate::state::{MenuState, MenuTarget, PluginState, RenameTarget};
+use crate::state::{MenuState, MenuTarget, PluginState, RenameTarget, TabKey};
 use crate::workers;
 use zellij_tile::prelude::*;
 
@@ -242,6 +242,9 @@ fn handle_key(state: &mut PluginState, key: KeyWithModifier) -> bool {
     if state.active_menu.is_some() {
         return handle_menu_key(state, &key);
     }
+    if state.active_picker.is_some() {
+        return handle_picker_key(state, key);
+    }
     if !key.has_no_modifiers() {
         return false;
     }
@@ -288,6 +291,61 @@ fn handle_rename_key(state: &mut PluginState, key: KeyWithModifier) -> bool {
         }
         BareKey::Esc => {
             state.rename_state = None;
+            true
+        }
+        _ => true,
+    }
+}
+
+fn handle_picker_key(state: &mut PluginState, key: KeyWithModifier) -> bool {
+    if !key.has_no_modifiers() {
+        return true;
+    }
+    match key.bare_key {
+        BareKey::Up | BareKey::Char('k') => {
+            if let Some(picker) = &mut state.active_picker {
+                picker.selected = picker.selected.saturating_sub(1);
+            }
+            true
+        }
+        BareKey::Down | BareKey::Char('j') => {
+            if let Some(picker) = &mut state.active_picker {
+                let max = picker.results.len().saturating_sub(1);
+                picker.selected = (picker.selected + 1).min(max);
+            }
+            true
+        }
+        BareKey::Enter => {
+            let result = state
+                .active_picker
+                .as_ref()
+                .and_then(|p| p.selected_emoji().map(|e| (e.to_string(), p.target_tab)));
+            if let Some((emoji, tab_pos)) = result {
+                if let Some(entry) = state.tab_entries.iter().find(|t| t.position == tab_pos) {
+                    let key = TabKey::new(&entry.name, entry.position);
+                    state.markers.insert(key, emoji);
+                    flush_state(state);
+                }
+            }
+            state.active_picker = None;
+            true
+        }
+        BareKey::Esc => {
+            state.active_picker = None;
+            true
+        }
+        BareKey::Backspace => {
+            if let Some(picker) = &mut state.active_picker {
+                picker.query.pop();
+                picker.filter();
+            }
+            true
+        }
+        BareKey::Char(c) => {
+            if let Some(picker) = &mut state.active_picker {
+                picker.query.push(c);
+                picker.filter();
+            }
             true
         }
         _ => true,

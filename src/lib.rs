@@ -6,6 +6,7 @@ mod indicators;
 mod input;
 mod menus;
 mod persistence;
+mod picker;
 mod render;
 mod state;
 mod widgets;

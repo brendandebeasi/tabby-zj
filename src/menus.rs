@@ -31,6 +31,7 @@ pub enum MenuAction {
     ClearColor(usize),
     DeleteGroup(String),
     UngroupTab(usize),
+    OpenEmojiPicker(usize),
 }
 
 fn sep() -> MenuItem {
@@ -103,6 +104,7 @@ pub fn build_tab_menu(tab_index: usize, group_names: &[String]) -> Vec<MenuItem>
         "◉ Set Color ▶",
         MenuAction::Submenu("Set Color".into(), color_items),
     ));
+    items.push(item("✦ Set Marker", MenuAction::OpenEmojiPicker(tab_index)));
     let marker_items = vec![
         item("🚀 Rocket", MenuAction::SetMarker(tab_index, "🚀".into())),
         item("⭐ Star", MenuAction::SetMarker(tab_index, "⭐".into())),
@@ -289,6 +291,9 @@ pub fn execute_action(state: &mut PluginState, action: MenuAction) {
                 state.markers.remove(&key);
                 flush_state(state);
             }
+        }
+        MenuAction::OpenEmojiPicker(tab_pos) => {
+            state.active_picker = Some(crate::picker::EmojiPickerState::new(tab_pos));
         }
     }
 }

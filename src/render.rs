@@ -68,6 +68,10 @@ pub fn render_sidebar(state: &mut PluginState, rows: usize, cols: usize) {
         );
     }
 
+    if let Some(picker) = state.active_picker.clone() {
+        apply_picker_overlay(&mut all_lines, &picker, offset, scrollable_rows, cols);
+    }
+
     for line in all_lines.iter().skip(offset).take(scrollable_rows) {
         print_text(Text::new(line.clone()));
     }
@@ -173,6 +177,26 @@ pub fn apply_menu_overlay(
         }
     }
     written
+}
+
+pub fn apply_picker_overlay(
+    all_lines: &mut Vec<String>,
+    picker: &crate::picker::EmojiPickerState,
+    offset: usize,
+    scrollable_rows: usize,
+    cols: usize,
+) {
+    let picker_lines = crate::picker::render_picker(picker, cols);
+    let needed = offset + picker_lines.len().min(scrollable_rows);
+    while all_lines.len() < needed {
+        all_lines.push(String::new());
+    }
+    for (i, line) in picker_lines.iter().enumerate().take(scrollable_rows) {
+        let abs_row = i + offset;
+        if abs_row < all_lines.len() {
+            all_lines[abs_row] = line.clone();
+        }
+    }
 }
 
 /// Build the widget/rename footer line (does NOT call print_text).
