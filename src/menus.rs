@@ -23,6 +23,7 @@ pub enum MenuAction {
     ToggleGroup(String),
     MoveToGroup(usize, String),
     NewTabInGroup(String),
+    #[allow(dead_code)]
     Submenu(String, Vec<MenuItem>),
     SetColor(usize, String),
 }
