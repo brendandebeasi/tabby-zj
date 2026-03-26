@@ -3,6 +3,7 @@ pub struct Rgb {
     pub g: u8,
     pub b: u8,
 }
+#[derive(Clone)]
 pub struct Hsl {
     pub h: f64,
     pub s: f64,

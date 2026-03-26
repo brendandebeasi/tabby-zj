@@ -6,6 +6,7 @@ pub struct EmojiPickerState {
     pub results: Vec<&'static emojis::Emoji>,
     pub selected: usize,
     pub target_tab: usize,
+    #[allow(dead_code)]
     pub position_line: usize,
 }
 

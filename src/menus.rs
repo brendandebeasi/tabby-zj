@@ -27,11 +27,13 @@ pub enum MenuAction {
     Submenu(String, Vec<MenuItem>),
     SetColor(usize, String),
     SetMarker(usize, String),
+    #[allow(dead_code)]
     ClearMarker(usize),
     ClearColor(usize),
     DeleteGroup(String),
     UngroupTab(usize),
     OpenEmojiPicker(usize),
+    OpenColorPicker(usize),
 }
 
 fn sep() -> MenuItem {
@@ -96,6 +98,7 @@ pub fn build_tab_menu(tab_index: usize, group_names: &[String]) -> Vec<MenuItem>
         item("● Pink", MenuAction::SetColor(tab_index, "#e91e63".into())),
         item("● Cyan", MenuAction::SetColor(tab_index, "#1abc9c".into())),
         item("● Gray", MenuAction::SetColor(tab_index, "#95a5a6".into())),
+        item("✎ Custom…", MenuAction::OpenColorPicker(tab_index)),
         sep(),
         item("✕ Default", MenuAction::ClearColor(tab_index)),
     ];
@@ -279,6 +282,18 @@ pub fn execute_action(state: &mut PluginState, action: MenuAction) {
         }
         MenuAction::OpenEmojiPicker(tab_pos) => {
             state.active_picker = Some(crate::picker::EmojiPickerState::new(tab_pos));
+        }
+        MenuAction::OpenColorPicker(tab_pos) => {
+            let existing_hex = state
+                .tab_entries
+                .iter()
+                .find(|t| t.position == tab_pos)
+                .and_then(|t| state.custom_colors.get(&TabKey::new(&t.name, t.position)))
+                .map(|s| s.as_str());
+            state.active_color_picker = Some(crate::color_picker::ColorPickerState::new(
+                tab_pos,
+                existing_hex,
+            ));
         }
     }
 }
@@ -545,8 +560,8 @@ mod tests {
         };
         assert_eq!(
             sub_items.len(),
-            11,
-            "Set Color submenu should have 9 colors + separator + Default"
+            12,
+            "Set Color submenu should have 9 colors + Custom + separator + Default"
         );
         assert!(sub_items
             .iter()
@@ -855,5 +870,48 @@ mod tests {
             Some(&"Frontend".into()),
             "other tab assignments should be preserved"
         );
+    }
+
+    #[test]
+    fn test_build_tab_menu_set_color_has_custom_item() {
+        let items = build_tab_menu(0, &[]);
+        let submenu = items
+            .iter()
+            .find(|i| matches!(&i.action, MenuAction::Submenu(label, _) if label == "Set Color"))
+            .expect("should have Set Color submenu");
+        let sub_items = match &submenu.action {
+            MenuAction::Submenu(_, sub_items) => sub_items,
+            _ => panic!("expected submenu"),
+        };
+        assert!(
+            sub_items.iter().any(|i| i.label.contains("Custom")
+                && matches!(i.action, MenuAction::OpenColorPicker(0))),
+            "Set Color submenu should include Custom item wired to OpenColorPicker"
+        );
+    }
+
+    #[test]
+    fn test_execute_open_color_picker_sets_active_state() {
+        let mut state = make_state_with_tab("api", 0);
+        execute_action(&mut state, MenuAction::OpenColorPicker(0));
+        assert!(state.active_color_picker.is_some());
+        assert_eq!(
+            state.active_color_picker.as_ref().map(|cp| cp.target_tab),
+            Some(0)
+        );
+    }
+
+    #[test]
+    fn test_execute_open_color_picker_prefills_existing_custom_color() {
+        let mut state = make_state_with_tab("api", 0);
+        state
+            .custom_colors
+            .insert(TabKey::new("api", 0), "#ff0000".into());
+        execute_action(&mut state, MenuAction::OpenColorPicker(0));
+        let cp = state
+            .active_color_picker
+            .as_ref()
+            .expect("color picker should be active");
+        assert_eq!(cp.current_hex(), "#ff0000");
     }
 }

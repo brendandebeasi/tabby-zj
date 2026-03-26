@@ -108,6 +108,7 @@ pub struct PluginState {
     pub active_menu: Option<MenuState>,
     pub rename_state: Option<RenameState>,
     pub active_picker: Option<crate::picker::EmojiPickerState>,
+    pub active_color_picker: Option<crate::color_picker::ColorPickerState>,
     pub indicators: HashMap<String, IndicatorState>,
     pub custom_colors: HashMap<TabKey, String>,
     pub markers: HashMap<TabKey, String>,

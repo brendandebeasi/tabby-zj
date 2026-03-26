@@ -1,4 +1,6 @@
 mod click;
+#[allow(clippy::redundant_closure)]
+mod color_picker;
 mod colors;
 mod config;
 mod grouping;

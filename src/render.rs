@@ -72,6 +72,10 @@ pub fn render_sidebar(state: &mut PluginState, rows: usize, cols: usize) {
         apply_picker_overlay(&mut all_lines, &picker, offset, scrollable_rows, cols);
     }
 
+    if let Some(cp) = state.active_color_picker.clone() {
+        apply_color_picker_overlay(&mut all_lines, &cp, offset, scrollable_rows, cols);
+    }
+
     for line in all_lines.iter().skip(offset).take(scrollable_rows) {
         print_text(Text::new(line.clone()));
     }
@@ -193,6 +197,27 @@ pub fn apply_picker_overlay(
     }
     for (i, line) in picker_lines.iter().enumerate().take(scrollable_rows) {
         let abs_row = i + offset;
+        if abs_row < all_lines.len() {
+            all_lines[abs_row] = line.clone();
+        }
+    }
+}
+
+pub fn apply_color_picker_overlay(
+    all_lines: &mut Vec<String>,
+    cp: &crate::color_picker::ColorPickerState,
+    offset: usize,
+    scrollable_rows: usize,
+    cols: usize,
+) {
+    let picker_lines = crate::color_picker::render_color_picker(cp, cols);
+    let start_row = offset + scrollable_rows.saturating_sub(picker_lines.len()) / 2;
+    let needed = start_row + picker_lines.len();
+    while all_lines.len() < needed {
+        all_lines.push(String::new());
+    }
+    for (i, line) in picker_lines.iter().enumerate() {
+        let abs_row = start_row + i;
         if abs_row < all_lines.len() {
             all_lines[abs_row] = line.clone();
         }

@@ -2,7 +2,7 @@ use crate::click::ClickTarget;
 use crate::config::KeybindingsConfig;
 use crate::persistence;
 use crate::render::PINNED_HEIGHT;
-use crate::state::{MenuState, MenuTarget, PluginState, RenameTarget, TabKey};
+use crate::state::{MenuState, MenuTarget, PluginState, RenameTarget};
 use crate::workers;
 use zellij_tile::prelude::*;
 
@@ -245,6 +245,9 @@ fn handle_key(state: &mut PluginState, key: KeyWithModifier) -> bool {
     if state.active_picker.is_some() {
         return handle_picker_key(state, key);
     }
+    if state.active_color_picker.is_some() {
+        return handle_color_picker_key(state, key);
+    }
     if !key.has_no_modifiers() {
         return false;
     }
@@ -398,20 +401,6 @@ fn handle_picker_key(state: &mut PluginState, key: KeyWithModifier) -> bool {
     }
     let emojis_per_row = (state.cols / 3).max(1);
     match key.bare_key {
-        BareKey::Char(c) => {
-            if let Some(picker) = &mut state.active_picker {
-                picker.query.push(c);
-                picker.filter();
-            }
-            true
-        }
-        BareKey::Backspace => {
-            if let Some(picker) = &mut state.active_picker {
-                picker.query.pop();
-                picker.filter();
-            }
-            true
-        }
         BareKey::Right | BareKey::Char('l') => {
             if let Some(picker) = &mut state.active_picker {
                 let max = picker.results.len().saturating_sub(1);
@@ -438,6 +427,20 @@ fn handle_picker_key(state: &mut PluginState, key: KeyWithModifier) -> bool {
             }
             true
         }
+        BareKey::Char(c) => {
+            if let Some(picker) = &mut state.active_picker {
+                picker.query.push(c);
+                picker.filter();
+            }
+            true
+        }
+        BareKey::Backspace => {
+            if let Some(picker) = &mut state.active_picker {
+                picker.query.pop();
+                picker.filter();
+            }
+            true
+        }
         BareKey::Enter => {
             if let Some(picker) = state.active_picker.take() {
                 if let Some(emoji) = picker.selected_emoji() {
@@ -451,6 +454,53 @@ fn handle_picker_key(state: &mut PluginState, key: KeyWithModifier) -> bool {
         }
         BareKey::Esc => {
             state.active_picker = None;
+            true
+        }
+        _ => true,
+    }
+}
+
+fn handle_color_picker_key(state: &mut PluginState, key: KeyWithModifier) -> bool {
+    if !key.has_no_modifiers() {
+        return false;
+    }
+    match key.bare_key {
+        BareKey::Down | BareKey::Char('j') => {
+            if let Some(cp) = &mut state.active_color_picker {
+                cp.next_component();
+            }
+            true
+        }
+        BareKey::Up | BareKey::Char('k') => {
+            if let Some(cp) = &mut state.active_color_picker {
+                cp.prev_component();
+            }
+            true
+        }
+        BareKey::Right | BareKey::Char('l') => {
+            if let Some(cp) = &mut state.active_color_picker {
+                cp.adjust(5.0);
+            }
+            true
+        }
+        BareKey::Left | BareKey::Char('h') => {
+            if let Some(cp) = &mut state.active_color_picker {
+                cp.adjust(-5.0);
+            }
+            true
+        }
+        BareKey::Enter => {
+            if let Some(cp) = state.active_color_picker.take() {
+                let hex = cp.current_hex();
+                crate::menus::execute_action(
+                    state,
+                    crate::menus::MenuAction::SetColor(cp.target_tab, hex),
+                );
+            }
+            true
+        }
+        BareKey::Esc => {
+            state.active_color_picker = None;
             true
         }
         _ => true,
@@ -1974,5 +2024,39 @@ mod tests {
             Some(0),
             "cursor should not move while picker is active"
         );
+    }
+
+    #[test]
+    fn test_color_picker_down_moves_to_next_component() {
+        let mut state = PluginState::default();
+        state.active_color_picker = Some(crate::color_picker::ColorPickerState::new(0, None));
+        handle_key(&mut state, make_key(BareKey::Down));
+        assert!(matches!(
+            state.active_color_picker.as_ref().map(|cp| &cp.active),
+            Some(crate::color_picker::HslComponent::S)
+        ));
+    }
+
+    #[test]
+    fn test_color_picker_enter_applies_color_and_clears_picker() {
+        let mut state = make_state_with_tab("api", 0);
+        let cp = crate::color_picker::ColorPickerState::new(0, Some("#ff0000"));
+        let expected = cp.current_hex();
+        state.active_color_picker = Some(cp);
+        handle_key(&mut state, make_key(BareKey::Enter));
+        assert!(state.active_color_picker.is_none());
+        assert_eq!(
+            state.custom_colors.get(&TabKey::new("api", 0)),
+            Some(&expected)
+        );
+    }
+
+    #[test]
+    fn test_color_picker_esc_clears_without_applying() {
+        let mut state = make_state_with_tab("api", 0);
+        state.active_color_picker = Some(crate::color_picker::ColorPickerState::new(0, None));
+        handle_key(&mut state, make_key(BareKey::Esc));
+        assert!(state.active_color_picker.is_none());
+        assert!(state.custom_colors.get(&TabKey::new("api", 0)).is_none());
     }
 }
