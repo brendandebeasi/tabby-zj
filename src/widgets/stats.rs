@@ -8,7 +8,7 @@ pub struct StatsData {
 
 pub fn parse_stats_output(output: &str) -> StatsData {
     let mut data = StatsData::default();
-    for token in output.trim().split_whitespace() {
+    for token in output.split_whitespace() {
         if let Some((key, val)) = token.split_once('=') {
             match key {
                 "cpu" => data.cpu_pct = val.parse().ok(),

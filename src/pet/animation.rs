@@ -39,8 +39,6 @@ impl Animation {
     }
 }
 
-static IDLE_FRAMES: &[&str] = &["(=^·ω·^=)", "(=^· ·^=)"];
-
 static HAPPY_FRAMES: &[&str] = &["(=^◕ᴥ◕^=)", "(=^◕‿◕^=)ﾉ"];
 
 static CONTENT_FRAMES: &[&str] = &["(=^·ω·^=)", "(=^·_·^=)"];
@@ -67,35 +65,31 @@ pub fn frames_for_mood(mood: &Mood) -> &'static [&'static str] {
     }
 }
 
-pub fn idle_frames() -> &'static [&'static str] {
-    IDLE_FRAMES
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
 
     #[test]
     fn test_animation_advances_frame() {
-        let mut anim = Animation::new(IDLE_FRAMES, 2);
-        assert_eq!(anim.current_frame(), IDLE_FRAMES[0]);
+        let mut anim = Animation::new(CONTENT_FRAMES, 2);
+        assert_eq!(anim.current_frame(), CONTENT_FRAMES[0]);
         anim.tick();
-        assert_eq!(anim.current_frame(), IDLE_FRAMES[0]);
+        assert_eq!(anim.current_frame(), CONTENT_FRAMES[0]);
         anim.tick();
-        assert_eq!(anim.current_frame(), IDLE_FRAMES[1]);
+        assert_eq!(anim.current_frame(), CONTENT_FRAMES[1]);
     }
 
     #[test]
     fn test_animation_wraps_around() {
-        let mut anim = Animation::new(IDLE_FRAMES, 1);
+        let mut anim = Animation::new(CONTENT_FRAMES, 1);
         anim.tick();
         anim.tick();
-        assert_eq!(anim.current_frame(), IDLE_FRAMES[0]);
+        assert_eq!(anim.current_frame(), CONTENT_FRAMES[0]);
     }
 
     #[test]
     fn test_set_mood_resets_frame() {
-        let mut anim = Animation::new(IDLE_FRAMES, 1);
+        let mut anim = Animation::new(CONTENT_FRAMES, 1);
         anim.tick();
         assert_eq!(anim.frame_index, 1);
         anim.set_mood(&Mood::Happy);

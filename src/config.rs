@@ -228,16 +228,10 @@ impl Default for StatsWidgetConfig {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct QuotaWidgetConfig {
     #[serde(default)]
     pub enabled: bool,
-}
-
-impl Default for QuotaWidgetConfig {
-    fn default() -> Self {
-        Self { enabled: false }
-    }
 }
 
 fn default_pet_name() -> String {
