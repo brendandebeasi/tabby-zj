@@ -64,6 +64,7 @@ pub fn render_sidebar(state: &mut PluginState, rows: usize, cols: usize) {
             scrollable_rows,
             cols,
             &group_names,
+            &sidebar_theme,
         );
     }
 
@@ -107,6 +108,7 @@ pub fn apply_menu_overlay(
     scrollable_rows: usize,
     cols: usize,
     group_names: &[String],
+    theme: &crate::colors::SidebarTheme,
 ) -> usize {
     use crate::menus::{build_group_menu, build_pane_menu, build_tab_menu};
     let items = match &menu_state.target {
@@ -124,9 +126,15 @@ pub fn apply_menu_overlay(
         if abs_row < all_lines.len() && visual_row < scrollable_rows {
             let selected = i == menu_state.selected_index;
             let (item_bg, item_fg) = if selected {
-                ("\x1b[48;2;60;60;80m", "\x1b[38;2;255;255;255m")
+                (
+                    colors::ansi_bg(&theme.menu_selected_bg),
+                    colors::ansi_fg(&theme.menu_selected_fg),
+                )
             } else {
-                ("\x1b[48;2;35;35;45m", "\x1b[38;2;200;200;200m")
+                (
+                    colors::ansi_bg(&theme.menu_bg),
+                    colors::ansi_fg(&theme.menu_fg),
+                )
             };
             let content = if item.is_separator {
                 "─".repeat(menu_width.saturating_sub(2))
@@ -1035,7 +1043,8 @@ mod tests {
             selected_index: 0,
             position_line: 1,
         };
-        let written = apply_menu_overlay(&mut lines, &menu, 0, 20, 40, &[]);
+        let theme = crate::colors::catppuccin_mocha();
+        let written = apply_menu_overlay(&mut lines, &menu, 0, 20, 40, &[], &theme);
         assert!(written > 0, "should write at least one menu item");
         assert_ne!(
             lines[1], original_line1,
@@ -1053,7 +1062,8 @@ mod tests {
             selected_index: 0,
             position_line: 0,
         };
-        apply_menu_overlay(&mut lines, &menu, 0, 20, 40, &[]);
+        let theme = crate::colors::catppuccin_mocha();
+        apply_menu_overlay(&mut lines, &menu, 0, 20, 40, &[], &theme);
         assert!(
             lines[0].contains('▶'),
             "selected item (index 0) should have arrow indicator"
@@ -1074,7 +1084,8 @@ mod tests {
             selected_index: 0,
             position_line: 0,
         };
-        apply_menu_overlay(&mut lines, &menu, 0, 20, 40, &[]);
+        let theme = crate::colors::catppuccin_mocha();
+        apply_menu_overlay(&mut lines, &menu, 0, 20, 40, &[], &theme);
         if lines.len() > 1 {
             assert!(
                 !lines[1].contains('▶') || lines[1].contains("\x1b["),
@@ -1094,7 +1105,8 @@ mod tests {
             selected_index: 0,
             position_line: 0,
         };
-        let written = apply_menu_overlay(&mut lines, &menu, 0, 20, 40, &[]);
+        let theme = crate::colors::catppuccin_mocha();
+        let written = apply_menu_overlay(&mut lines, &menu, 0, 20, 40, &[], &theme);
         assert_eq!(written, 0, "MenuTarget::None should write 0 items");
         assert_eq!(lines, original, "lines should be unchanged for None target");
     }
@@ -1109,7 +1121,8 @@ mod tests {
             selected_index: 0,
             position_line: 9999,
         };
-        let written = apply_menu_overlay(&mut lines, &menu, 0, 20, 40, &[]);
+        let theme = crate::colors::catppuccin_mocha();
+        let written = apply_menu_overlay(&mut lines, &menu, 0, 20, 40, &[], &theme);
         assert_eq!(
             written, 0,
             "out-of-bounds position_line should write nothing"
@@ -1126,7 +1139,8 @@ mod tests {
             selected_index: 0,
             position_line: 0,
         };
-        let written = apply_menu_overlay(&mut lines, &menu, 0, 20, 40, &[]);
+        let theme = crate::colors::catppuccin_mocha();
+        let written = apply_menu_overlay(&mut lines, &menu, 0, 20, 40, &[], &theme);
         assert!(written > 0, "group menu should write at least one item");
     }
 
@@ -1140,7 +1154,9 @@ mod tests {
             selected_index: 0,
             position_line: 0,
         };
-        apply_menu_overlay(&mut lines, &menu, 0, 20, 40, &[]);
+        let theme = crate::colors::catppuccin_mocha();
+        apply_menu_overlay(&mut lines, &menu, 0, 20, 40, &[], &theme);
+        // Check for the theme-derived ANSI code for menu_selected_bg (#3c3c50)
         assert!(
             lines[0].contains("\x1b[48;2;60;60;80m"),
             "selected item should have highlight background color"

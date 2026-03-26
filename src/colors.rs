@@ -230,6 +230,10 @@ pub struct SidebarTheme {
     pub sidebar_fg: String,
     pub divider_fg: String,
     pub is_dark: bool,
+    pub menu_selected_bg: String,
+    pub menu_selected_fg: String,
+    pub menu_bg: String,
+    pub menu_fg: String,
 }
 
 pub fn catppuccin_mocha() -> SidebarTheme {
@@ -238,6 +242,10 @@ pub fn catppuccin_mocha() -> SidebarTheme {
         sidebar_fg: "#cdd6f4".into(),
         divider_fg: "#45475a".into(),
         is_dark: true,
+        menu_selected_bg: "#3c3c50".into(),
+        menu_selected_fg: "#ffffff".into(),
+        menu_bg: "#23232d".into(),
+        menu_fg: "#c8c8c8".into(),
     }
 }
 
@@ -247,6 +255,10 @@ pub fn rose_pine_dawn() -> SidebarTheme {
         sidebar_fg: "#575279".into(),
         divider_fg: "#dfdad9".into(),
         is_dark: false,
+        menu_selected_bg: "#cecacd".into(),
+        menu_selected_fg: "#575279".into(),
+        menu_bg: "#ebe5e0".into(),
+        menu_fg: "#575279".into(),
     }
 }
 

@@ -358,57 +358,149 @@ fn cursor_ensure_visible(state: &mut PluginState) {
     }
 }
 
+/// Structured representation of a pipe command payload.
+#[derive(Debug, PartialEq)]
+pub enum PipeCommand {
+    SetIndicator {
+        indicator: String,
+        value: bool,
+        pane_id: Option<String>,
+    },
+    Collapse(bool),
+    Toggle,
+    ReloadConfig,
+    SetMarker {
+        tab_key: String,
+        emoji: String,
+    },
+    SetQuota {
+        data: String,
+    },
+    Unknown(String),
+}
+
+/// Parse a raw pipe payload string + args map into a `PipeCommand`.
+///
+/// Wire formats (unchanged):
+/// - `"busy:1"` / `"busy:0"` / `"busy:true"` / `"busy:on"`
+/// - `"bell:1"` / `"bell:0"`
+/// - `"input:1"` / `"input:0"`
+/// - `"collapse:1"` / `"collapse:0"`
+/// - `"toggle:<any>"` — value ignored, always toggles
+/// - `"config:<any>"` — value ignored, always reloads
+/// - `"marker:<tab_key>:<emoji>"`
+/// - `"quota:<data>"`
+/// - anything else → `Unknown`
+pub fn parse_pipe(payload: &str, args: &std::collections::BTreeMap<String, String>) -> PipeCommand {
+    let parts: Vec<&str> = payload.splitn(3, ':').collect();
+    if parts.is_empty() || (parts.len() == 1 && parts[0].is_empty()) {
+        return PipeCommand::Unknown(payload.to_string());
+    }
+
+    let cmd = parts[0];
+
+    match cmd {
+        "toggle" => return PipeCommand::Toggle,
+        "config" => return PipeCommand::ReloadConfig,
+        _ => {}
+    }
+
+    // All remaining commands require at least a second part.
+    if parts.len() < 2 {
+        return PipeCommand::Unknown(payload.to_string());
+    }
+
+    let rest = parts[1];
+
+    match cmd {
+        "collapse" => {
+            let value = rest == "1" || rest == "true" || rest == "on";
+            PipeCommand::Collapse(value)
+        }
+        "quota" => {
+            // rest is everything after the first colon
+            let data = if parts.len() > 2 {
+                format!("{}:{}", rest, parts[2])
+            } else {
+                rest.to_string()
+            };
+            PipeCommand::SetQuota { data }
+        }
+        "marker" => {
+            if parts.len() < 3 {
+                return PipeCommand::Unknown(payload.to_string());
+            }
+            PipeCommand::SetMarker {
+                tab_key: rest.to_string(),
+                emoji: parts[2].to_string(),
+            }
+        }
+        "busy" | "bell" | "input" => {
+            let value = rest == "1" || rest == "true" || rest == "on";
+            // pane_id: prefer args map, then fall back to third colon-segment
+            let pane_id = args.get("pane_id").cloned().or_else(|| {
+                if parts.len() > 2 {
+                    Some(parts[2].to_string())
+                } else {
+                    None
+                }
+            });
+            PipeCommand::SetIndicator {
+                indicator: cmd.to_string(),
+                value,
+                pane_id,
+            }
+        }
+        _ => PipeCommand::Unknown(payload.to_string()),
+    }
+}
+
 pub fn handle_pipe(state: &mut PluginState, pipe_message: PipeMessage) -> bool {
     let payload = match &pipe_message.payload {
         Some(p) => p.clone(),
         None => return false,
     };
-    let parts: Vec<&str> = payload.splitn(3, ':').collect();
-    if parts.len() < 2 {
-        return false;
-    }
-    let indicator_type = parts[0];
-    let value = parts[1] == "1" || parts[1] == "true" || parts[1] == "on";
 
-    match indicator_type {
-        "collapse" => {
+    match parse_pipe(&payload, &pipe_message.args) {
+        PipeCommand::Collapse(value) => {
             state.sidebar_collapsed = value;
             flush_state(state);
-            return true;
+            true
         }
-        "toggle" => {
+        PipeCommand::Toggle => {
             state.sidebar_collapsed = !state.sidebar_collapsed;
             flush_state(state);
-            return true;
+            true
         }
-        "config" => {
+        PipeCommand::ReloadConfig => {
             state.config = crate::config::Config::load();
-            return true;
+            true
         }
-        _ => {}
-    }
-
-    let pane_id = pipe_message
-        .args
-        .get("pane_id")
-        .cloned()
-        .or_else(|| {
-            if parts.len() > 2 {
-                Some(parts[2].to_string())
-            } else {
-                None
+        PipeCommand::SetIndicator {
+            indicator,
+            value,
+            pane_id,
+        } => {
+            let id = pane_id.unwrap_or_else(|| "default".to_string());
+            let entry = state.indicators.entry(id).or_default();
+            match indicator.as_str() {
+                "busy" => entry.busy = value,
+                "bell" => entry.bell = value,
+                "input" => entry.input = value,
+                _ => return false,
             }
-        })
-        .unwrap_or_else(|| "default".to_string());
-
-    let indicator = state.indicators.entry(pane_id).or_default();
-    match indicator_type {
-        "busy" => indicator.busy = value,
-        "bell" => indicator.bell = value,
-        "input" => indicator.input = value,
-        _ => return false,
+            true
+        }
+        PipeCommand::SetMarker { .. } => {
+            // Marker handling not yet wired to state — return true to ack receipt
+            true
+        }
+        PipeCommand::SetQuota { .. } => {
+            // Quota handling not yet wired to state — return true to ack receipt
+            true
+        }
+        PipeCommand::Unknown(_) => false,
     }
-    true
 }
 
 #[cfg(test)]
