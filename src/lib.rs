@@ -8,6 +8,7 @@ mod indicators;
 mod input;
 mod menus;
 mod persistence;
+mod pet;
 mod picker;
 mod render;
 mod state;
