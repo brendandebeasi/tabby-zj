@@ -30,6 +30,7 @@ pub enum MenuAction {
     ClearMarker(usize),
     ClearColor(usize),
     DeleteGroup(String),
+    UngroupTab(usize),
 }
 
 fn sep() -> MenuItem {
@@ -55,7 +56,7 @@ pub fn build_tab_menu(tab_index: usize, group_names: &[String]) -> Vec<MenuItem>
         item("✎ Rename", MenuAction::RenameTab(tab_index)),
     ];
     if !group_names.is_empty() {
-        let sub_items: Vec<MenuItem> = group_names
+        let mut sub_items: Vec<MenuItem> = group_names
             .iter()
             .map(|n| {
                 item(
@@ -64,6 +65,11 @@ pub fn build_tab_menu(tab_index: usize, group_names: &[String]) -> Vec<MenuItem>
                 )
             })
             .collect();
+        sub_items.push(sep());
+        sub_items.push(item(
+            "↖ Remove from group",
+            MenuAction::UngroupTab(tab_index),
+        ));
         items.push(sep());
         items.push(item(
             "→ Move to Group ▶",
@@ -251,6 +257,17 @@ pub fn execute_action(state: &mut PluginState, action: MenuAction) {
             state.collapsed_groups.remove(&group_name);
             flush_state(state);
         }
+        MenuAction::UngroupTab(tab_pos) => {
+            if let Some(key) = state
+                .tab_entries
+                .iter()
+                .find(|t| t.position == tab_pos)
+                .map(|t| TabKey::new(&t.name, t.position))
+            {
+                state.group_assignments.remove(&key);
+                flush_state(state);
+            }
+        }
         MenuAction::SetMarker(tab_pos, emoji) => {
             if let Some(key) = state
                 .tab_entries
@@ -432,7 +449,11 @@ mod tests {
             MenuAction::Submenu(_, sub_items) => sub_items,
             _ => panic!("expected submenu"),
         };
-        assert_eq!(sub_items.len(), 2, "should have one MoveToGroup per group");
+        assert_eq!(
+            sub_items.len(),
+            4,
+            "should have 2 MoveToGroup items + sep + UngroupTab"
+        );
         assert!(sub_items
             .iter()
             .any(|i| matches!(&i.action, MenuAction::MoveToGroup(1, n) if n == "Frontend")));
@@ -775,5 +796,88 @@ mod tests {
         state.active_menu = Some(crate::state::MenuState::default());
         execute_action(&mut state, MenuAction::DeleteGroup("X".into()));
         assert!(state.active_menu.is_none());
+    }
+
+    #[test]
+    fn test_build_tab_menu_move_to_group_submenu_has_ungroup_option() {
+        let groups = vec!["Backend".to_string()];
+        let items = build_tab_menu(0, &groups);
+        let submenu = items
+            .iter()
+            .find(|i| matches!(&i.action, MenuAction::Submenu(l, _) if l == "Move to Group"))
+            .expect("should have Move to Group submenu");
+        let sub_items = match &submenu.action {
+            MenuAction::Submenu(_, sub_items) => sub_items,
+            _ => panic!("expected submenu"),
+        };
+        assert!(
+            sub_items
+                .iter()
+                .any(|i| matches!(i.action, MenuAction::UngroupTab(0))),
+            "Move to Group submenu should contain UngroupTab option"
+        );
+    }
+
+    #[test]
+    fn test_execute_ungroup_tab_removes_assignment() {
+        let mut state = make_state_with_tab("api", 0);
+        state
+            .group_assignments
+            .insert(TabKey::new("api", 0), "Backend".into());
+        execute_action(&mut state, MenuAction::UngroupTab(0));
+        assert!(
+            state
+                .group_assignments
+                .get(&TabKey::new("api", 0))
+                .is_none(),
+            "UngroupTab should remove the group assignment"
+        );
+        assert!(state.active_menu.is_none());
+    }
+
+    #[test]
+    fn test_execute_ungroup_tab_no_assignment_is_noop() {
+        let mut state = make_state_with_tab("api", 0);
+        execute_action(&mut state, MenuAction::UngroupTab(0));
+        assert!(state
+            .group_assignments
+            .get(&TabKey::new("api", 0))
+            .is_none());
+        assert!(state.active_menu.is_none());
+    }
+
+    #[test]
+    fn test_execute_ungroup_tab_preserves_other_assignments() {
+        let mut state = make_state();
+        state.tab_entries = vec![
+            crate::state::TabEntry {
+                position: 0,
+                name: "api".into(),
+                active: false,
+                panes: vec![],
+            },
+            crate::state::TabEntry {
+                position: 1,
+                name: "ui".into(),
+                active: false,
+                panes: vec![],
+            },
+        ];
+        state
+            .group_assignments
+            .insert(TabKey::new("api", 0), "Backend".into());
+        state
+            .group_assignments
+            .insert(TabKey::new("ui", 1), "Frontend".into());
+        execute_action(&mut state, MenuAction::UngroupTab(0));
+        assert!(state
+            .group_assignments
+            .get(&TabKey::new("api", 0))
+            .is_none());
+        assert_eq!(
+            state.group_assignments.get(&TabKey::new("ui", 1)),
+            Some(&"Frontend".into()),
+            "other tab assignments should be preserved"
+        );
     }
 }
