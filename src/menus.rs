@@ -26,6 +26,8 @@ pub enum MenuAction {
     #[allow(dead_code)]
     Submenu(String, Vec<MenuItem>),
     SetColor(usize, String),
+    SetMarker(usize, String),
+    ClearMarker(usize),
 }
 
 fn sep() -> MenuItem {
@@ -90,6 +92,24 @@ pub fn build_tab_menu(tab_index: usize, group_names: &[String]) -> Vec<MenuItem>
     items.push(item(
         "◉ Set Color ▶",
         MenuAction::Submenu("Set Color".into(), color_items),
+    ));
+    let marker_items = vec![
+        item("🚀 Rocket", MenuAction::SetMarker(tab_index, "🚀".into())),
+        item("⭐ Star", MenuAction::SetMarker(tab_index, "⭐".into())),
+        item("🔥 Fire", MenuAction::SetMarker(tab_index, "🔥".into())),
+        item("✅ Done", MenuAction::SetMarker(tab_index, "✅".into())),
+        item("⚠️ Warning", MenuAction::SetMarker(tab_index, "⚠️".into())),
+        item("📌 Pin", MenuAction::SetMarker(tab_index, "📌".into())),
+        item("💡 Idea", MenuAction::SetMarker(tab_index, "💡".into())),
+        item("🔴 Red", MenuAction::SetMarker(tab_index, "🔴".into())),
+        item("🟢 Green", MenuAction::SetMarker(tab_index, "🟢".into())),
+        item("🔵 Blue", MenuAction::SetMarker(tab_index, "🔵".into())),
+        sep(),
+        item("✕ Clear marker", MenuAction::ClearMarker(tab_index)),
+    ];
+    items.push(item(
+        "◈ Set Marker ▶",
+        MenuAction::Submenu("Set Marker".into(), marker_items),
     ));
     items.push(sep());
     items.push(item("✕ Close tab", MenuAction::CloseTab(tab_index)));
@@ -209,6 +229,28 @@ pub fn execute_action(state: &mut PluginState, action: MenuAction) {
             }
         }
         MenuAction::Submenu(_, _) => {}
+        MenuAction::SetMarker(tab_pos, emoji) => {
+            if let Some(key) = state
+                .tab_entries
+                .iter()
+                .find(|t| t.position == tab_pos)
+                .map(|t| TabKey::new(&t.name, t.position))
+            {
+                state.markers.insert(key, emoji);
+                flush_state(state);
+            }
+        }
+        MenuAction::ClearMarker(tab_pos) => {
+            if let Some(key) = state
+                .tab_entries
+                .iter()
+                .find(|t| t.position == tab_pos)
+                .map(|t| TabKey::new(&t.name, t.position))
+            {
+                state.markers.remove(&key);
+                flush_state(state);
+            }
+        }
     }
 }
 
@@ -520,5 +562,85 @@ mod tests {
             state.active_menu.is_none(),
             "execute_action should still clear menu on Submenu"
         );
+    }
+
+    #[test]
+    fn test_build_tab_menu_always_has_set_marker_submenu() {
+        let items = build_tab_menu(0, &[]);
+        let submenu = items
+            .iter()
+            .find(|i| matches!(&i.action, MenuAction::Submenu(label, _) if label == "Set Marker"))
+            .expect("tab menu should always have Set Marker submenu");
+        let sub_items = match &submenu.action {
+            MenuAction::Submenu(_, sub_items) => sub_items,
+            _ => panic!("expected submenu"),
+        };
+        assert!(
+            sub_items
+                .iter()
+                .any(|i| matches!(&i.action, MenuAction::SetMarker(0, e) if e == "🚀")),
+            "Set Marker submenu should contain Rocket emoji option"
+        );
+        assert!(
+            sub_items
+                .iter()
+                .any(|i| matches!(i.action, MenuAction::ClearMarker(0))),
+            "Set Marker submenu should contain Clear option"
+        );
+    }
+
+    #[test]
+    fn test_build_tab_menu_set_marker_submenu_label_has_indicator() {
+        let items = build_tab_menu(2, &[]);
+        let submenu = items
+            .iter()
+            .find(|i| matches!(&i.action, MenuAction::Submenu(label, _) if label == "Set Marker"))
+            .expect("should have Set Marker submenu");
+        assert!(
+            submenu.label.contains('▶'),
+            "Set Marker submenu label should have ▶"
+        );
+    }
+
+    #[test]
+    fn test_execute_set_marker_inserts_emoji() {
+        let mut state = make_state_with_tab("api", 0);
+        execute_action(&mut state, MenuAction::SetMarker(0, "🔥".into()));
+        assert_eq!(
+            state.markers.get(&TabKey::new("api", 0)),
+            Some(&"🔥".into()),
+            "SetMarker should store the emoji in markers"
+        );
+        assert!(state.active_menu.is_none());
+    }
+
+    #[test]
+    fn test_execute_set_marker_overwrites_existing() {
+        let mut state = make_state_with_tab("api", 0);
+        state.markers.insert(TabKey::new("api", 0), "⭐".into());
+        execute_action(&mut state, MenuAction::SetMarker(0, "🚀".into()));
+        assert_eq!(
+            state.markers.get(&TabKey::new("api", 0)),
+            Some(&"🚀".into()),
+        );
+    }
+
+    #[test]
+    fn test_execute_clear_marker_removes_entry() {
+        let mut state = make_state_with_tab("api", 0);
+        state.markers.insert(TabKey::new("api", 0), "🔥".into());
+        execute_action(&mut state, MenuAction::ClearMarker(0));
+        assert!(
+            state.markers.get(&TabKey::new("api", 0)).is_none(),
+            "ClearMarker should remove the markers entry"
+        );
+    }
+
+    #[test]
+    fn test_execute_clear_marker_no_entry_is_noop() {
+        let mut state = make_state_with_tab("api", 0);
+        execute_action(&mut state, MenuAction::ClearMarker(0));
+        assert!(state.markers.get(&TabKey::new("api", 0)).is_none());
+        assert!(state.active_menu.is_none());
     }
 }
