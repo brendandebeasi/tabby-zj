@@ -23,6 +23,8 @@ pub enum MenuAction {
     ToggleGroup(String),
     MoveToGroup(usize, String),
     NewTabInGroup(String),
+    Submenu(String, Vec<MenuItem>),
+    SetColor(usize, String),
 }
 
 fn sep() -> MenuItem {
@@ -48,14 +50,46 @@ pub fn build_tab_menu(tab_index: usize, group_names: &[String]) -> Vec<MenuItem>
         item("✎ Rename", MenuAction::RenameTab(tab_index)),
     ];
     if !group_names.is_empty() {
+        let sub_items: Vec<MenuItem> = group_names
+            .iter()
+            .map(|n| {
+                item(
+                    &format!("→ {}", n),
+                    MenuAction::MoveToGroup(tab_index, n.clone()),
+                )
+            })
+            .collect();
         items.push(sep());
-        for name in group_names {
-            items.push(item(
-                &format!("→ {}", name),
-                MenuAction::MoveToGroup(tab_index, name.clone()),
-            ));
-        }
+        items.push(item(
+            "→ Move to Group ▶",
+            MenuAction::Submenu("Move to Group".into(), sub_items),
+        ));
     }
+    let color_items = vec![
+        item("● Red", MenuAction::SetColor(tab_index, "#e74c3c".into())),
+        item(
+            "● Orange",
+            MenuAction::SetColor(tab_index, "#e67e22".into()),
+        ),
+        item(
+            "● Yellow",
+            MenuAction::SetColor(tab_index, "#f1c40f".into()),
+        ),
+        item("● Green", MenuAction::SetColor(tab_index, "#27ae60".into())),
+        item("● Blue", MenuAction::SetColor(tab_index, "#3498db".into())),
+        item(
+            "● Purple",
+            MenuAction::SetColor(tab_index, "#9b59b6".into()),
+        ),
+        item("● Pink", MenuAction::SetColor(tab_index, "#e91e63".into())),
+        item("● Cyan", MenuAction::SetColor(tab_index, "#1abc9c".into())),
+        item("● Gray", MenuAction::SetColor(tab_index, "#95a5a6".into())),
+    ];
+    items.push(sep());
+    items.push(item(
+        "◉ Set Color ▶",
+        MenuAction::Submenu("Set Color".into(), color_items),
+    ));
     items.push(sep());
     items.push(item("✕ Close tab", MenuAction::CloseTab(tab_index)));
     items
@@ -162,6 +196,18 @@ pub fn execute_action(state: &mut PluginState, action: MenuAction) {
                 let _ = new_tab::<String>(None, None);
             }
         }
+        MenuAction::SetColor(tab_pos, color) => {
+            if let Some(key) = state
+                .tab_entries
+                .iter()
+                .find(|t| t.position == tab_pos)
+                .map(|t| TabKey::new(&t.name, t.position))
+            {
+                state.custom_colors.insert(key, color);
+                flush_state(state);
+            }
+        }
+        MenuAction::Submenu(_, _) => {}
     }
 }
 
@@ -311,15 +357,21 @@ mod tests {
     fn test_build_tab_menu_with_groups_emits_move_items() {
         let groups = vec!["Frontend".to_string(), "Backend".to_string()];
         let items = build_tab_menu(1, &groups);
-        let move_items: Vec<_> = items
+        let submenu = items
             .iter()
-            .filter(|i| matches!(&i.action, MenuAction::MoveToGroup(_, _)))
-            .collect();
-        assert_eq!(move_items.len(), 2, "should have one MoveToGroup per group");
-        assert!(move_items
+            .find(
+                |i| matches!(&i.action, MenuAction::Submenu(label, _) if label == "Move to Group"),
+            )
+            .expect("should have Move to Group submenu");
+        let sub_items = match &submenu.action {
+            MenuAction::Submenu(_, sub_items) => sub_items,
+            _ => panic!("expected submenu"),
+        };
+        assert_eq!(sub_items.len(), 2, "should have one MoveToGroup per group");
+        assert!(sub_items
             .iter()
             .any(|i| matches!(&i.action, MenuAction::MoveToGroup(1, n) if n == "Frontend")));
-        assert!(move_items
+        assert!(sub_items
             .iter()
             .any(|i| matches!(&i.action, MenuAction::MoveToGroup(1, n) if n == "Backend")));
     }
@@ -328,10 +380,20 @@ mod tests {
     fn test_build_tab_menu_move_items_have_arrow_label() {
         let groups = vec!["Infra".to_string()];
         let items = build_tab_menu(0, &groups);
-        let move_item = items
+        let submenu = items
+            .iter()
+            .find(
+                |i| matches!(&i.action, MenuAction::Submenu(label, _) if label == "Move to Group"),
+            )
+            .expect("should have Move to Group submenu");
+        let sub_items = match &submenu.action {
+            MenuAction::Submenu(_, sub_items) => sub_items,
+            _ => panic!("expected submenu"),
+        };
+        let move_item = sub_items
             .iter()
             .find(|i| matches!(&i.action, MenuAction::MoveToGroup(_, _)))
-            .expect("should have a MoveToGroup item");
+            .expect("submenu should have a MoveToGroup item");
         assert!(
             move_item.label.contains("Infra"),
             "MoveToGroup label should contain group name"
@@ -358,11 +420,21 @@ mod tests {
     fn test_build_menu_for_target_tab_passes_groups() {
         let groups = vec!["Ops".to_string()];
         let items = build_menu_for_target(&MenuTarget::Tab(5), &groups);
+        let submenu = items
+            .iter()
+            .find(
+                |i| matches!(&i.action, MenuAction::Submenu(label, _) if label == "Move to Group"),
+            )
+            .expect("build_menu_for_target should produce Move to Group submenu");
+        let sub_items = match &submenu.action {
+            MenuAction::Submenu(_, sub_items) => sub_items,
+            _ => panic!("expected submenu"),
+        };
         assert!(
-            items
+            sub_items
                 .iter()
                 .any(|i| matches!(&i.action, MenuAction::MoveToGroup(5, n) if n == "Ops")),
-            "build_menu_for_target should forward group_names to build_tab_menu"
+            "submenu should contain MoveToGroup item forwarded from group_names"
         );
     }
 
@@ -381,6 +453,71 @@ mod tests {
                 .iter()
                 .all(|i| !matches!(&i.action, MenuAction::MoveToGroup(_, _))),
             "pane menu should not have MoveToGroup items"
+        );
+    }
+
+    #[test]
+    fn test_build_tab_menu_always_has_set_color_submenu() {
+        let items = build_tab_menu(0, &[]);
+        let submenu = items
+            .iter()
+            .find(|i| matches!(&i.action, MenuAction::Submenu(label, _) if label == "Set Color"))
+            .expect("tab menu should always have Set Color submenu");
+        let sub_items = match &submenu.action {
+            MenuAction::Submenu(_, sub_items) => sub_items,
+            _ => panic!("expected submenu"),
+        };
+        assert_eq!(
+            sub_items.len(),
+            9,
+            "Set Color submenu should have 9 color options"
+        );
+        assert!(sub_items
+            .iter()
+            .any(|i| matches!(&i.action, MenuAction::SetColor(0, c) if c == "#e74c3c")));
+        assert!(sub_items.iter().any(|i| i.label.contains("Red")));
+    }
+
+    #[test]
+    fn test_build_tab_menu_set_color_submenu_label_has_indicator() {
+        let items = build_tab_menu(3, &[]);
+        let submenu = items
+            .iter()
+            .find(|i| matches!(&i.action, MenuAction::Submenu(label, _) if label == "Set Color"))
+            .expect("should have Set Color submenu");
+        assert!(
+            submenu.label.contains('▶'),
+            "Set Color submenu label should have ▶"
+        );
+    }
+
+    #[test]
+    fn test_execute_set_color_inserts_custom_color() {
+        let mut state = make_state_with_tab("api", 0);
+        execute_action(&mut state, MenuAction::SetColor(0, "#e74c3c".into()));
+        assert_eq!(
+            state.custom_colors.get(&TabKey::new("api", 0)),
+            Some(&"#e74c3c".into()),
+            "SetColor should store the color in custom_colors"
+        );
+    }
+
+    #[test]
+    fn test_execute_set_color_clears_active_menu() {
+        let mut state = make_state_with_tab("api", 0);
+        state.active_menu = Some(crate::state::MenuState::default());
+        execute_action(&mut state, MenuAction::SetColor(0, "#27ae60".into()));
+        assert!(state.active_menu.is_none());
+    }
+
+    #[test]
+    fn test_execute_submenu_is_noop() {
+        let mut state = make_state();
+        state.active_menu = Some(crate::state::MenuState::default());
+        execute_action(&mut state, MenuAction::Submenu("Test".into(), vec![]));
+        assert!(
+            state.active_menu.is_none(),
+            "execute_action should still clear menu on Submenu"
         );
     }
 }

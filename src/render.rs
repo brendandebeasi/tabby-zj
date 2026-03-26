@@ -111,17 +111,36 @@ pub fn apply_menu_overlay(
     theme: &crate::colors::SidebarTheme,
 ) -> usize {
     use crate::menus::{build_group_menu, build_pane_menu, build_tab_menu};
-    let items = match &menu_state.target {
-        MenuTarget::Tab(pos) => build_tab_menu(*pos, group_names),
-        MenuTarget::Pane(id) => build_pane_menu(*id),
-        MenuTarget::Group(name) => build_group_menu(name),
-        MenuTarget::None => return 0,
+    let items = if let Some(cached) = &menu_state.items_cache {
+        cached.clone()
+    } else {
+        match &menu_state.target {
+            MenuTarget::Tab(pos) => build_tab_menu(*pos, group_names),
+            MenuTarget::Pane(id) => build_pane_menu(*id),
+            MenuTarget::Group(name) => build_group_menu(name),
+            MenuTarget::None => return 0,
+        }
     };
+    let in_submenu = menu_state.parent_items.is_some();
     let menu_width = 26.min(cols);
     let start_visual = menu_state.position_line;
     let mut written = 0;
+    if in_submenu {
+        let abs_row = start_visual + offset;
+        if abs_row < all_lines.len() && start_visual < scrollable_rows {
+            all_lines[abs_row] = format!(
+                "{}{}{}{}",
+                colors::ansi_bg(&theme.menu_bg),
+                colors::ansi_fg(&theme.menu_fg),
+                pad_visible("← Back (Esc)", menu_width),
+                colors::RESET
+            );
+            written += 1;
+        }
+    }
+    let item_row_offset = usize::from(in_submenu);
     for (i, item) in items.iter().enumerate() {
-        let visual_row = start_visual + i;
+        let visual_row = start_visual + item_row_offset + i;
         let abs_row = visual_row + offset;
         if abs_row < all_lines.len() && visual_row < scrollable_rows {
             let selected = i == menu_state.selected_index;
@@ -1042,6 +1061,7 @@ mod tests {
             target: MenuTarget::Tab(0),
             selected_index: 0,
             position_line: 1,
+            ..Default::default()
         };
         let theme = crate::colors::catppuccin_mocha();
         let written = apply_menu_overlay(&mut lines, &menu, 0, 20, 40, &[], &theme);
@@ -1061,6 +1081,7 @@ mod tests {
             target: MenuTarget::Tab(0),
             selected_index: 0,
             position_line: 0,
+            ..Default::default()
         };
         let theme = crate::colors::catppuccin_mocha();
         apply_menu_overlay(&mut lines, &menu, 0, 20, 40, &[], &theme);
@@ -1083,6 +1104,7 @@ mod tests {
             target: MenuTarget::Tab(0),
             selected_index: 0,
             position_line: 0,
+            ..Default::default()
         };
         let theme = crate::colors::catppuccin_mocha();
         apply_menu_overlay(&mut lines, &menu, 0, 20, 40, &[], &theme);
@@ -1104,6 +1126,7 @@ mod tests {
             target: MenuTarget::None,
             selected_index: 0,
             position_line: 0,
+            ..Default::default()
         };
         let theme = crate::colors::catppuccin_mocha();
         let written = apply_menu_overlay(&mut lines, &menu, 0, 20, 40, &[], &theme);
@@ -1120,6 +1143,7 @@ mod tests {
             target: MenuTarget::Tab(0),
             selected_index: 0,
             position_line: 9999,
+            ..Default::default()
         };
         let theme = crate::colors::catppuccin_mocha();
         let written = apply_menu_overlay(&mut lines, &menu, 0, 20, 40, &[], &theme);
@@ -1138,6 +1162,7 @@ mod tests {
             target: MenuTarget::Group("Default".to_string()),
             selected_index: 0,
             position_line: 0,
+            ..Default::default()
         };
         let theme = crate::colors::catppuccin_mocha();
         let written = apply_menu_overlay(&mut lines, &menu, 0, 20, 40, &[], &theme);
@@ -1153,6 +1178,7 @@ mod tests {
             target: MenuTarget::Tab(0),
             selected_index: 0,
             position_line: 0,
+            ..Default::default()
         };
         let theme = crate::colors::catppuccin_mocha();
         apply_menu_overlay(&mut lines, &menu, 0, 20, 40, &[], &theme);
@@ -1335,6 +1361,7 @@ mod tests {
             target: MenuTarget::Tab(0),
             selected_index: 0,
             position_line: 1,
+            ..Default::default()
         });
         render_sidebar(&mut state, 20, 30);
     }

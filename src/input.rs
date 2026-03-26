@@ -156,10 +156,14 @@ fn dispatch_right_click(
         Some(ClickTarget::Pane(id)) => MenuTarget::Pane(id),
         _ => return false,
     };
+    let group_names: Vec<String> = state.config.groups.iter().map(|g| g.name.clone()).collect();
+    let items = build_menu_items(&menu_target, &group_names);
     state.active_menu = Some(MenuState {
         target: menu_target,
         selected_index: 0,
         position_line: visual_line,
+        parent_items: None,
+        items_cache: Some(items),
     });
     true
 }
@@ -340,19 +344,43 @@ fn handle_menu_key(state: &mut PluginState, key: &KeyWithModifier) -> bool {
         }
         BareKey::Enter => {
             if let Some(menu_state) = state.active_menu.clone() {
-                let group_names: Vec<String> =
-                    state.config.groups.iter().map(|g| g.name.clone()).collect();
-                let items = build_menu_items(&menu_state.target, &group_names);
+                let items = menu_state.items_cache.clone().unwrap_or_else(|| {
+                    let group_names: Vec<String> =
+                        state.config.groups.iter().map(|g| g.name.clone()).collect();
+                    build_menu_items(&menu_state.target, &group_names)
+                });
                 if let Some(item) = items.get(menu_state.selected_index) {
                     if !item.is_separator {
-                        crate::menus::execute_action(state, item.action.clone());
+                        match item.action.clone() {
+                            crate::menus::MenuAction::Submenu(_, sub_items) => {
+                                if let Some(menu) = &mut state.active_menu {
+                                    menu.parent_items = Some(items.clone());
+                                    menu.items_cache = Some(sub_items);
+                                    menu.selected_index = 0;
+                                }
+                            }
+                            action => {
+                                crate::menus::execute_action(state, action);
+                            }
+                        }
                     }
                 }
             }
             true
         }
         BareKey::Esc => {
-            state.active_menu = None;
+            let parent = state
+                .active_menu
+                .as_mut()
+                .and_then(|m| m.parent_items.take());
+            if let Some(parent_items) = parent {
+                if let Some(menu) = &mut state.active_menu {
+                    menu.items_cache = Some(parent_items);
+                    menu.selected_index = 0;
+                }
+            } else {
+                state.active_menu = None;
+            }
             true
         }
         _ => false,
@@ -369,11 +397,18 @@ fn build_menu_items(target: &MenuTarget, group_names: &[String]) -> Vec<crate::m
 }
 
 fn menu_item_count(state: &PluginState) -> usize {
-    let group_names: Vec<String> = state.config.groups.iter().map(|g| g.name.clone()).collect();
     state
         .active_menu
         .as_ref()
-        .map(|m| build_menu_items(&m.target, &group_names).len())
+        .map(|m| {
+            if let Some(items) = &m.items_cache {
+                items.len()
+            } else {
+                let group_names: Vec<String> =
+                    state.config.groups.iter().map(|g| g.name.clone()).collect();
+                build_menu_items(&m.target, &group_names).len()
+            }
+        })
         .unwrap_or(0)
 }
 
@@ -705,6 +740,7 @@ mod tests {
             target: MenuTarget::Tab(0),
             selected_index: 0,
             position_line: 0,
+            ..Default::default()
         });
         let result = handle_key(&mut state, make_key(BareKey::Esc));
         assert!(result, "Esc on open menu should return true");
@@ -1031,6 +1067,7 @@ mod tests {
             target: MenuTarget::Tab(0),
             selected_index: 0,
             position_line: 0,
+            ..Default::default()
         });
         handle_key(&mut state, make_key(BareKey::Esc));
         assert!(
@@ -1047,6 +1084,7 @@ mod tests {
             target: MenuTarget::Tab(0),
             selected_index: 2,
             position_line: 0,
+            ..Default::default()
         });
         handle_key(&mut state, make_key(BareKey::Up));
         assert_eq!(state.active_menu.as_ref().unwrap().selected_index, 1);
@@ -1059,6 +1097,7 @@ mod tests {
             target: MenuTarget::Tab(0),
             selected_index: 0,
             position_line: 0,
+            ..Default::default()
         });
         handle_key(&mut state, make_key(BareKey::Down));
         assert_eq!(state.active_menu.as_ref().unwrap().selected_index, 1);
@@ -1567,5 +1606,177 @@ mod tests {
         assert_eq!(parse_key_string("Ctrl+j"), None);
         assert_eq!(parse_key_string(""), None);
         assert_eq!(parse_key_string("unknown"), None);
+    }
+
+    fn make_state_with_tab(name: &str, pos: usize) -> PluginState {
+        let mut s = PluginState::default();
+        s.tab_entries = vec![crate::state::TabEntry {
+            position: pos,
+            name: name.into(),
+            active: false,
+            panes: vec![],
+        }];
+        s
+    }
+
+    #[test]
+    fn test_enter_on_submenu_item_opens_submenu() {
+        let mut state = PluginState::default();
+        let groups = vec!["Backend".to_string()];
+        let items = crate::menus::build_tab_menu(0, &groups);
+        let submenu_idx = items
+            .iter()
+            .position(|i| matches!(&i.action, crate::menus::MenuAction::Submenu(l, _) if l == "Move to Group"))
+            .expect("should have Move to Group submenu");
+        state.active_menu = Some(crate::state::MenuState {
+            target: MenuTarget::Tab(0),
+            selected_index: submenu_idx,
+            position_line: 0,
+            items_cache: Some(items.clone()),
+            ..Default::default()
+        });
+        handle_key(&mut state, make_key(BareKey::Enter));
+        let menu = state
+            .active_menu
+            .as_ref()
+            .expect("menu should still be open");
+        assert!(
+            menu.parent_items.is_some(),
+            "parent_items should be set after entering submenu"
+        );
+        let cache = menu
+            .items_cache
+            .as_ref()
+            .expect("items_cache should be set");
+        assert!(
+            cache.iter().any(|i| matches!(&i.action, crate::menus::MenuAction::MoveToGroup(0, n) if n == "Backend")),
+            "items_cache should contain MoveToGroup items"
+        );
+        assert_eq!(menu.selected_index, 0, "selected_index should reset to 0");
+    }
+
+    #[test]
+    fn test_esc_in_submenu_returns_to_parent_not_dismiss() {
+        let mut state = PluginState::default();
+        let parent_items = crate::menus::build_tab_menu(0, &["Ops".to_string()]);
+        let sub_items = vec![crate::menus::MenuItem {
+            label: "→ Ops".into(),
+            action: crate::menus::MenuAction::MoveToGroup(0, "Ops".into()),
+            is_separator: false,
+        }];
+        state.active_menu = Some(crate::state::MenuState {
+            target: MenuTarget::Tab(0),
+            selected_index: 0,
+            position_line: 0,
+            parent_items: Some(parent_items.clone()),
+            items_cache: Some(sub_items),
+        });
+        handle_key(&mut state, make_key(BareKey::Esc));
+        let menu = state
+            .active_menu
+            .as_ref()
+            .expect("menu should still be open after Esc in submenu");
+        assert!(
+            menu.parent_items.is_none(),
+            "parent_items should be cleared after returning to parent"
+        );
+        let cache = menu
+            .items_cache
+            .as_ref()
+            .expect("items_cache should be restored");
+        assert_eq!(
+            cache.len(),
+            parent_items.len(),
+            "items_cache should be restored to parent items"
+        );
+    }
+
+    #[test]
+    fn test_esc_in_root_menu_dismisses() {
+        let mut state = PluginState::default();
+        state.active_menu = Some(crate::state::MenuState {
+            target: MenuTarget::Tab(0),
+            selected_index: 0,
+            position_line: 0,
+            ..Default::default()
+        });
+        handle_key(&mut state, make_key(BareKey::Esc));
+        assert!(
+            state.active_menu.is_none(),
+            "Esc in root menu should dismiss"
+        );
+    }
+
+    #[test]
+    fn test_submenu_item_select_executes_action_and_closes_menu() {
+        let mut state = make_state_with_tab("api", 0);
+        let sub_items = vec![crate::menus::MenuItem {
+            label: "→ Backend".into(),
+            action: crate::menus::MenuAction::MoveToGroup(0, "Backend".into()),
+            is_separator: false,
+        }];
+        let parent_items = crate::menus::build_tab_menu(0, &["Backend".to_string()]);
+        state.active_menu = Some(crate::state::MenuState {
+            target: MenuTarget::Tab(0),
+            selected_index: 0,
+            position_line: 0,
+            parent_items: Some(parent_items),
+            items_cache: Some(sub_items),
+        });
+        handle_key(&mut state, make_key(BareKey::Enter));
+        assert!(
+            state.active_menu.is_none(),
+            "menu should be dismissed after executing action"
+        );
+        assert_eq!(
+            state.group_assignments.get(&TabKey::new("api", 0)),
+            Some(&"Backend".into()),
+            "MoveToGroup should have been executed"
+        );
+    }
+
+    #[test]
+    fn test_right_click_initialises_items_cache() {
+        let mut state = PluginState::default();
+        state.click_regions = vec![region(0, ClickTarget::Tab(3))];
+        sim_right(&mut state, 0);
+        let menu = state.active_menu.as_ref().expect("menu should be set");
+        assert!(
+            menu.items_cache.is_some(),
+            "right-click should initialise items_cache"
+        );
+    }
+
+    #[test]
+    fn test_set_color_submenu_accessible_from_tab_menu() {
+        let mut state = make_state_with_tab("api", 0);
+        let groups: Vec<String> = vec![];
+        let items = crate::menus::build_tab_menu(0, &groups);
+        let color_submenu_idx = items
+            .iter()
+            .position(|i| matches!(&i.action, crate::menus::MenuAction::Submenu(l, _) if l == "Set Color"))
+            .expect("should have Set Color submenu");
+        state.active_menu = Some(crate::state::MenuState {
+            target: MenuTarget::Tab(0),
+            selected_index: color_submenu_idx,
+            position_line: 0,
+            items_cache: Some(items),
+            ..Default::default()
+        });
+        handle_key(&mut state, make_key(BareKey::Enter));
+        let menu = state
+            .active_menu
+            .as_ref()
+            .expect("menu should still be open");
+        let cache = menu
+            .items_cache
+            .as_ref()
+            .expect("items_cache should have color items");
+        assert!(
+            cache.iter().any(
+                |i| matches!(&i.action, crate::menus::MenuAction::SetColor(0, c) if c == "#e74c3c")
+            ),
+            "Set Color submenu should contain Red color option"
+        );
     }
 }

@@ -123,6 +123,8 @@ pub struct MenuState {
     pub target: MenuTarget,
     pub selected_index: usize,
     pub position_line: usize,
+    pub parent_items: Option<Vec<crate::menus::MenuItem>>,
+    pub items_cache: Option<Vec<crate::menus::MenuItem>>,
 }
 
 #[derive(Default, Clone)]
