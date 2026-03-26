@@ -16,7 +16,11 @@ A port of the [Tabby](https://github.com/brendandebeasi/tabby) tmux plugin to Ze
 - **YAML configuration** — Fully customizable themes, grouping rules, and widget settings.
 - **Sidebar collapse** — Expand or collapse the sidebar via mouse or pipe command to save space.
 - **Hot-reload** — Refresh configuration on the fly without restarting your Zellij session.
-- **Built-in widgets** — Async git status and a customizable clock.
+- **Built-in widgets** — Clock, async git status, CPU/memory/battery stats, AI quota display, and a virtual pet.
+- **Custom keybindings** — Remap sidebar keys via `keybindings:` config section.
+- **Nested context menus** — "Move to Group" and "Set Color" open 1-level submenus.
+- **Emoji marker picker** — Searchable overlay to set emoji markers on tabs.
+- **HSL color picker** — Interactive keyboard-driven color picker for tabs and groups.
 
 ## Requirements
 
@@ -85,6 +89,23 @@ widgets:
   git:
     enabled: true
     interval_secs: 5
+  stats:
+    enabled: false
+    interval_secs: 30
+  quota:
+    enabled: false
+  pet:
+    enabled: false
+    name: "Whiskers"
+
+# Custom keybindings (defaults shown)
+keybindings:
+  cursor_up: "k"
+  cursor_down: "j"
+  activate: "Enter"
+  dismiss: "Esc"
+  toggle_collapse: "c"
+  new_tab: "n"
 ```
 
 ## Mouse Controls
@@ -127,6 +148,10 @@ Control the sidebar state and indicators from the terminal using `zellij pipe`.
 | `zellij pipe --plugin tabby-zj --name tabby -- "collapse:1"` | Collapse sidebar |
 | `zellij pipe --plugin tabby-zj --name tabby -- "toggle"` | Toggle sidebar collapse |
 | `zellij pipe --plugin tabby-zj --name tabby -- "config"` | Hot-reload configuration |
+| `zellij pipe --plugin tabby-zj --name tabby -- "quota:remaining=450,limit=1000,resets=2h30m"` | Set AI quota display |
+| `zellij pipe --plugin tabby-zj --name tabby -- "pet:feed"` | Feed the pet |
+| `zellij pipe --plugin tabby-zj --name tabby -- "pet:pet"` | Pet the cat |
+| `zellij pipe --plugin tabby-zj --name tabby -- "pet:play"` | Play with the cat |
 
 *Note: You can target a specific pane with `indicator:1:%42` or by passing `--args pane_id=%42`.*
 
