@@ -354,9 +354,11 @@ fn handle_menu_key(state: &mut PluginState, key: &KeyWithModifier) -> bool {
                         match item.action.clone() {
                             crate::menus::MenuAction::Submenu(_, sub_items) => {
                                 if let Some(menu) = &mut state.active_menu {
-                                    menu.parent_items = Some(items.clone());
-                                    menu.items_cache = Some(sub_items);
-                                    menu.selected_index = 0;
+                                    if menu.parent_items.is_none() {
+                                        menu.parent_items = Some(items.clone());
+                                        menu.items_cache = Some(sub_items);
+                                        menu.selected_index = 0;
+                                    }
                                 }
                             }
                             action => {
@@ -1744,6 +1746,42 @@ mod tests {
         assert!(
             menu.items_cache.is_some(),
             "right-click should initialise items_cache"
+        );
+    }
+
+    #[test]
+    fn test_submenu_max_depth_one_level_ignored() {
+        let mut state = PluginState::default();
+        let nested = vec![crate::menus::MenuItem {
+            label: "Inner".into(),
+            action: crate::menus::MenuAction::Noop,
+            is_separator: false,
+        }];
+        let sub_items = vec![crate::menus::MenuItem {
+            label: "Nested ▶".into(),
+            action: crate::menus::MenuAction::Submenu("Nested".into(), nested),
+            is_separator: false,
+        }];
+        let parent_items = crate::menus::build_tab_menu(0, &[]);
+        state.active_menu = Some(crate::state::MenuState {
+            target: MenuTarget::Tab(0),
+            selected_index: 0,
+            position_line: 0,
+            parent_items: Some(parent_items),
+            items_cache: Some(sub_items),
+        });
+        handle_key(&mut state, make_key(BareKey::Enter));
+        let menu = state
+            .active_menu
+            .as_ref()
+            .expect("menu should still be open");
+        assert!(
+            menu.parent_items.is_some(),
+            "parent_items should be unchanged — no deeper than 1 level"
+        );
+        assert_eq!(
+            menu.selected_index, 0,
+            "selected_index unchanged when depth guard fires"
         );
     }
 
