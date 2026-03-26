@@ -2,7 +2,7 @@ use crate::click::{ClickRegion, ClickTarget};
 use crate::colors;
 use crate::grouping::{assign_groups, auto_fill_theme};
 use crate::indicators::{render_indicators, IndicatorState};
-use crate::state::{MenuTarget, PluginState};
+use crate::state::{MenuTarget, PluginState, TabKey};
 use crate::widgets;
 use zellij_tile::prelude::*;
 
@@ -225,7 +225,7 @@ pub fn build_sidebar_lines(state: &PluginState, cols: usize) -> (Vec<String>, Ve
         }
 
         for tab in &group.tabs {
-            let tab_key = format!("{}::{}", tab.name, tab.position);
+            let tab_key = TabKey::new(&tab.name, tab.position);
             let marker = state
                 .markers
                 .get(&tab_key)
@@ -428,7 +428,9 @@ mod tests {
     #[test]
     fn test_marker_appears_in_tab_line() {
         let mut state = state_with_tabs(vec![make_tab("api", 0, false)]);
-        state.markers.insert("api::0".to_string(), "🚀".to_string());
+        state
+            .markers
+            .insert(TabKey::new("api", 0), "🚀".to_string());
         let (lines, _) = build_sidebar_lines(&state, 40);
         let tab_line = lines.iter().nth(1).expect("tab line expected");
         assert!(tab_line.contains("🚀"), "marker should appear in tab line");
@@ -439,7 +441,7 @@ mod tests {
         let mut state = state_with_tabs(vec![make_tab("api", 0, false)]);
         state
             .custom_colors
-            .insert("api::0".to_string(), "#e74c3c".to_string());
+            .insert(TabKey::new("api", 0), "#e74c3c".to_string());
         let (lines, _) = build_sidebar_lines(&state, 30);
         let tab_line = lines.iter().nth(1).expect("tab line expected");
         assert!(

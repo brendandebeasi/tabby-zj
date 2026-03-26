@@ -1,6 +1,6 @@
 use crate::colors;
 use crate::config::{GroupConfig, ThemeConfig};
-use crate::state::TabEntry;
+use crate::state::{TabEntry, TabKey};
 use regex::Regex;
 use std::collections::{HashMap, HashSet};
 
@@ -14,7 +14,7 @@ pub struct GroupedTabs {
 pub fn assign_groups(
     tabs: &[TabEntry],
     group_configs: &[GroupConfig],
-    manual: &HashMap<String, String>,
+    manual: &HashMap<TabKey, String>,
     collapsed: &HashSet<String>,
     show_empty: bool,
     _sort_by: &str,
@@ -38,7 +38,7 @@ pub fn assign_groups(
     group_buckets.entry("Default".into()).or_default();
 
     for tab in tabs {
-        let tab_key = format!("{}::{}", tab.name, tab.position);
+        let tab_key = TabKey::new(&tab.name, tab.position);
 
         if let Some(group_name) = manual.get(&tab_key) {
             group_buckets
@@ -177,7 +177,7 @@ mod tests {
             make_group("Backend", r"^BE\|"),
         ];
         let mut manual = HashMap::new();
-        manual.insert("FE|dashboard::0".to_string(), "Backend".to_string());
+        manual.insert(TabKey::new("FE|dashboard", 0), "Backend".to_string());
         let result = assign_groups(&tabs, &groups, &manual, &HashSet::new(), true, "index");
         let backend = result.iter().find(|g| g.group_name == "Backend");
         assert_eq!(backend.unwrap().tabs.len(), 1);

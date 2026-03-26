@@ -8,8 +8,6 @@ use std::path::PathBuf;
 use std::str::FromStr;
 use zellij_tile::prelude::*;
 
-/// Typed composite key for per-tab state maps.
-/// Serializes/deserializes as `"name::position"` for backward compat with state.json.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct TabKey {
     pub name: String,
@@ -44,7 +42,6 @@ impl FromStr for TabKey {
     type Err = TabKeyParseError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        // Split on last "::" to allow tab names that contain "::"
         let sep = "::";
         let idx = s.rfind(sep).ok_or(TabKeyParseError)?;
         let name = &s[..idx];
@@ -102,7 +99,7 @@ pub struct PluginState {
     pub pane_manifest: Option<PaneManifest>,
     pub active_tab_index: usize,
     pub tab_entries: Vec<TabEntry>,
-    pub group_assignments: HashMap<String, String>,
+    pub group_assignments: HashMap<TabKey, String>,
     pub collapsed_groups: HashSet<String>,
     pub viewport_offset: usize,
     pub max_viewport_offset: usize,
@@ -111,8 +108,8 @@ pub struct PluginState {
     pub active_menu: Option<MenuState>,
     pub rename_state: Option<RenameState>,
     pub indicators: HashMap<String, IndicatorState>,
-    pub custom_colors: HashMap<String, String>,
-    pub markers: HashMap<String, String>,
+    pub custom_colors: HashMap<TabKey, String>,
+    pub markers: HashMap<TabKey, String>,
     pub tick_count: u64,
     #[allow(dead_code)]
     pub last_save_tick: u64,
@@ -176,8 +173,8 @@ impl PluginState {
     }
 
     #[allow(dead_code)]
-    pub fn tab_key(&self, tab: &TabInfo) -> String {
-        format!("{}::{}", tab.name, tab.position)
+    pub fn tab_key(&self, tab: &TabInfo) -> TabKey {
+        TabKey::new(&tab.name, tab.position)
     }
 
     pub fn rebuild_tab_entries(&mut self) {
@@ -239,7 +236,8 @@ mod tests {
     fn test_tab_key_format() {
         let state = PluginState::default();
         let tab = make_tab(0, "api", true);
-        assert_eq!(state.tab_key(&tab), "api::0");
+        assert_eq!(state.tab_key(&tab), TabKey::new("api", 0));
+        assert_eq!(state.tab_key(&tab).to_string(), "api::0");
     }
 
     #[test]
@@ -248,6 +246,39 @@ mod tests {
         let tab1 = make_tab(0, "api", true);
         let tab2 = make_tab(1, "api", false);
         assert_ne!(state.tab_key(&tab1), state.tab_key(&tab2));
+    }
+
+    #[test]
+    fn test_tab_key_parse_roundtrip() {
+        let key = TabKey::new("Dashboard", 3);
+        let s = key.to_string();
+        assert_eq!(s, "Dashboard::3");
+        let parsed: TabKey = s.parse().unwrap();
+        assert_eq!(parsed, key);
+    }
+
+    #[test]
+    fn test_tab_key_parse_name_with_colons() {
+        let key = TabKey::new("a::b", 5);
+        let s = key.to_string();
+        assert_eq!(s, "a::b::5");
+        let parsed: TabKey = s.parse().unwrap();
+        assert_eq!(parsed, key);
+    }
+
+    #[test]
+    fn test_tab_key_parse_invalid() {
+        assert!("no_separator".parse::<TabKey>().is_err());
+        assert!("name::notanumber".parse::<TabKey>().is_err());
+    }
+
+    #[test]
+    fn test_tab_key_serde_roundtrip() {
+        let key = TabKey::new("api", 0);
+        let json = serde_json::to_string(&key).unwrap();
+        assert_eq!(json, r#""api::0""#);
+        let back: TabKey = serde_json::from_str(&json).unwrap();
+        assert_eq!(back, key);
     }
 
     #[test]

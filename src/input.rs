@@ -415,7 +415,7 @@ pub fn handle_pipe(state: &mut PluginState, pipe_message: PipeMessage) -> bool {
 mod tests {
     use super::*;
     use crate::click::{ClickRegion, ClickTarget};
-    use crate::state::{MenuTarget, PluginState};
+    use crate::state::{MenuTarget, PluginState, TabKey};
 
     fn make_pipe(payload: &str) -> PipeMessage {
         PipeMessage {
@@ -823,14 +823,14 @@ mod tests {
         let mut state = PluginState::default();
         state
             .group_assignments
-            .insert("api::0".into(), "OldName".into());
+            .insert(TabKey::new("api", 0), "OldName".into());
         state.rename_state = Some(make_rename_state(
             RenameTarget::Group("OldName".into()),
             "NewName",
         ));
         handle_key(&mut state, make_key(BareKey::Enter));
         assert_eq!(
-            state.group_assignments.get("api::0"),
+            state.group_assignments.get(&TabKey::new("api", 0)),
             Some(&"NewName".into())
         );
     }
@@ -853,11 +853,11 @@ mod tests {
         let mut state = PluginState::default();
         state
             .group_assignments
-            .insert("api::0".into(), "MyGroup".into());
+            .insert(TabKey::new("api", 0), "MyGroup".into());
         state.rename_state = Some(make_rename_state(RenameTarget::Group("MyGroup".into()), ""));
         handle_key(&mut state, make_key(BareKey::Enter));
         assert_eq!(
-            state.group_assignments.get("api::0"),
+            state.group_assignments.get(&TabKey::new("api", 0)),
             Some(&"MyGroup".into())
         );
     }

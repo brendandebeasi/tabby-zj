@@ -1,5 +1,5 @@
 use crate::persistence;
-use crate::state::{MenuTarget, PluginState, RenameState, RenameTarget};
+use crate::state::{MenuTarget, PluginState, RenameState, RenameTarget, TabKey};
 #[allow(unused_imports)]
 use zellij_tile::prelude::*;
 
@@ -150,7 +150,7 @@ pub fn execute_action(state: &mut PluginState, action: MenuAction) {
                 .tab_entries
                 .iter()
                 .find(|t| t.position == tab_pos)
-                .map(|t| format!("{}::{}", t.name, t.position))
+                .map(|t| TabKey::new(&t.name, t.position))
             {
                 state.group_assignments.insert(key, group_name);
                 flush_state(state);
@@ -249,7 +249,7 @@ mod tests {
         let mut state = make_state_with_tab("api", 0);
         execute_action(&mut state, MenuAction::MoveToGroup(0, "Backend".into()));
         assert_eq!(
-            state.group_assignments.get("api::0"),
+            state.group_assignments.get(&TabKey::new("api", 0)),
             Some(&"Backend".into())
         );
     }
