@@ -28,6 +28,7 @@ pub enum MenuAction {
     SetColor(usize, String),
     SetMarker(usize, String),
     ClearMarker(usize),
+    ClearColor(usize),
 }
 
 fn sep() -> MenuItem {
@@ -87,6 +88,8 @@ pub fn build_tab_menu(tab_index: usize, group_names: &[String]) -> Vec<MenuItem>
         item("● Pink", MenuAction::SetColor(tab_index, "#e91e63".into())),
         item("● Cyan", MenuAction::SetColor(tab_index, "#1abc9c".into())),
         item("● Gray", MenuAction::SetColor(tab_index, "#95a5a6".into())),
+        sep(),
+        item("✕ Default", MenuAction::ClearColor(tab_index)),
     ];
     items.push(sep());
     items.push(item(
@@ -229,6 +232,17 @@ pub fn execute_action(state: &mut PluginState, action: MenuAction) {
             }
         }
         MenuAction::Submenu(_, _) => {}
+        MenuAction::ClearColor(tab_pos) => {
+            if let Some(key) = state
+                .tab_entries
+                .iter()
+                .find(|t| t.position == tab_pos)
+                .map(|t| TabKey::new(&t.name, t.position))
+            {
+                state.custom_colors.remove(&key);
+                flush_state(state);
+            }
+        }
         MenuAction::SetMarker(tab_pos, emoji) => {
             if let Some(key) = state
                 .tab_entries
@@ -512,8 +526,8 @@ mod tests {
         };
         assert_eq!(
             sub_items.len(),
-            9,
-            "Set Color submenu should have 9 color options"
+            11,
+            "Set Color submenu should have 9 colors + separator + Default"
         );
         assert!(sub_items
             .iter()
@@ -641,6 +655,47 @@ mod tests {
         let mut state = make_state_with_tab("api", 0);
         execute_action(&mut state, MenuAction::ClearMarker(0));
         assert!(state.markers.get(&TabKey::new("api", 0)).is_none());
+        assert!(state.active_menu.is_none());
+    }
+
+    #[test]
+    fn test_build_tab_menu_set_color_has_default_clear_option() {
+        let items = build_tab_menu(0, &[]);
+        let submenu = items
+            .iter()
+            .find(|i| matches!(&i.action, MenuAction::Submenu(label, _) if label == "Set Color"))
+            .expect("should have Set Color submenu");
+        let sub_items = match &submenu.action {
+            MenuAction::Submenu(_, sub_items) => sub_items,
+            _ => panic!("expected submenu"),
+        };
+        assert!(
+            sub_items
+                .iter()
+                .any(|i| matches!(i.action, MenuAction::ClearColor(0))),
+            "Set Color submenu should have a Default (clear) option"
+        );
+    }
+
+    #[test]
+    fn test_execute_clear_color_removes_entry() {
+        let mut state = make_state_with_tab("api", 0);
+        state
+            .custom_colors
+            .insert(TabKey::new("api", 0), "#e74c3c".into());
+        execute_action(&mut state, MenuAction::ClearColor(0));
+        assert!(
+            state.custom_colors.get(&TabKey::new("api", 0)).is_none(),
+            "ClearColor should remove the custom_colors entry"
+        );
+        assert!(state.active_menu.is_none());
+    }
+
+    #[test]
+    fn test_execute_clear_color_no_entry_is_noop() {
+        let mut state = make_state_with_tab("api", 0);
+        execute_action(&mut state, MenuAction::ClearColor(0));
+        assert!(state.custom_colors.get(&TabKey::new("api", 0)).is_none());
         assert!(state.active_menu.is_none());
     }
 }
