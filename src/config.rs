@@ -11,6 +11,24 @@ pub struct Config {
     pub indicators: IndicatorConfig,
     #[serde(default)]
     pub widgets: WidgetConfig,
+    #[serde(default)]
+    pub keybindings: KeybindingsConfig,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct KeybindingsConfig {
+    #[serde(default)]
+    pub cursor_up: Option<String>,
+    #[serde(default)]
+    pub cursor_down: Option<String>,
+    #[serde(default)]
+    pub activate: Option<String>,
+    #[serde(default)]
+    pub dismiss: Option<String>,
+    #[serde(default)]
+    pub toggle_collapse: Option<String>,
+    #[serde(default)]
+    pub new_tab: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -344,6 +362,49 @@ indicators:
         }
         assert_eq!(config.groups.len(), 0);
         assert_eq!(config.sidebar.width, 25);
+    }
+
+    #[test]
+    fn test_keybindings_defaults_are_none() {
+        let config = Config::default();
+        assert!(config.keybindings.cursor_up.is_none());
+        assert!(config.keybindings.cursor_down.is_none());
+        assert!(config.keybindings.activate.is_none());
+        assert!(config.keybindings.dismiss.is_none());
+        assert!(config.keybindings.toggle_collapse.is_none());
+        assert!(config.keybindings.new_tab.is_none());
+    }
+
+    #[test]
+    fn test_keybindings_parses_from_yaml() {
+        let yaml = r#"
+keybindings:
+  cursor_down: "n"
+  cursor_up: "p"
+  activate: "Enter"
+  dismiss: "Esc"
+  toggle_collapse: "t"
+  new_tab: "T"
+"#;
+        let config = Config::from_yaml(yaml).expect("should parse");
+        assert_eq!(config.keybindings.cursor_down, Some("n".into()));
+        assert_eq!(config.keybindings.cursor_up, Some("p".into()));
+        assert_eq!(config.keybindings.activate, Some("Enter".into()));
+        assert_eq!(config.keybindings.dismiss, Some("Esc".into()));
+        assert_eq!(config.keybindings.toggle_collapse, Some("t".into()));
+        assert_eq!(config.keybindings.new_tab, Some("T".into()));
+    }
+
+    #[test]
+    fn test_keybindings_partial_override() {
+        let yaml = r#"
+keybindings:
+  cursor_down: "n"
+"#;
+        let config = Config::from_yaml(yaml).expect("should parse");
+        assert_eq!(config.keybindings.cursor_down, Some("n".into()));
+        assert!(config.keybindings.cursor_up.is_none());
+        assert!(config.keybindings.activate.is_none());
     }
 
     #[test]

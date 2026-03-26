@@ -1,9 +1,21 @@
 use crate::click::ClickTarget;
+use crate::config::KeybindingsConfig;
 use crate::persistence;
 use crate::render::PINNED_HEIGHT;
 use crate::state::{MenuState, MenuTarget, PluginState, RenameTarget};
 use crate::workers;
 use zellij_tile::prelude::*;
+
+/// Logical actions that can be triggered by key presses.
+#[derive(Debug, Clone, PartialEq)]
+pub enum Action {
+    CursorUp,
+    CursorDown,
+    Activate,
+    Dismiss,
+    ToggleCollapse,
+    NewTab,
+}
 
 pub fn handle_event(state: &mut PluginState, event: Event) -> bool {
     match event {
@@ -152,6 +164,63 @@ fn dispatch_right_click(
     true
 }
 
+fn parse_key_string(s: &str) -> Option<BareKey> {
+    match s {
+        "Enter" => Some(BareKey::Enter),
+        "Esc" => Some(BareKey::Esc),
+        "Up" => Some(BareKey::Up),
+        "Down" => Some(BareKey::Down),
+        "Left" => Some(BareKey::Left),
+        "Right" => Some(BareKey::Right),
+        "Backspace" => Some(BareKey::Backspace),
+        s if s.chars().count() == 1 => Some(BareKey::Char(s.chars().next().unwrap())),
+        _ => None,
+    }
+}
+
+fn resolve_action(key: &KeyWithModifier, cfg: &KeybindingsConfig) -> Option<Action> {
+    let bare = &key.bare_key;
+
+    if let Some(s) = &cfg.cursor_down {
+        if parse_key_string(s).as_ref() == Some(bare) {
+            return Some(Action::CursorDown);
+        }
+    }
+    if let Some(s) = &cfg.cursor_up {
+        if parse_key_string(s).as_ref() == Some(bare) {
+            return Some(Action::CursorUp);
+        }
+    }
+    if let Some(s) = &cfg.activate {
+        if parse_key_string(s).as_ref() == Some(bare) {
+            return Some(Action::Activate);
+        }
+    }
+    if let Some(s) = &cfg.dismiss {
+        if parse_key_string(s).as_ref() == Some(bare) {
+            return Some(Action::Dismiss);
+        }
+    }
+    if let Some(s) = &cfg.toggle_collapse {
+        if parse_key_string(s).as_ref() == Some(bare) {
+            return Some(Action::ToggleCollapse);
+        }
+    }
+    if let Some(s) = &cfg.new_tab {
+        if parse_key_string(s).as_ref() == Some(bare) {
+            return Some(Action::NewTab);
+        }
+    }
+
+    match bare {
+        BareKey::Up | BareKey::Char('k') if cfg.cursor_up.is_none() => Some(Action::CursorUp),
+        BareKey::Down | BareKey::Char('j') if cfg.cursor_down.is_none() => Some(Action::CursorDown),
+        BareKey::Enter if cfg.activate.is_none() => Some(Action::Activate),
+        BareKey::Esc | BareKey::Char('q') if cfg.dismiss.is_none() => Some(Action::Dismiss),
+        _ => None,
+    }
+}
+
 fn flush_state(state: &PluginState) {
     persistence::save_state(&persistence::PersistedState {
         group_assignments: state.group_assignments.clone(),
@@ -172,24 +241,24 @@ fn handle_key(state: &mut PluginState, key: KeyWithModifier) -> bool {
     if !key.has_no_modifiers() {
         return false;
     }
-    match key.bare_key {
-        BareKey::Up | BareKey::Char('k') => {
+    match resolve_action(&key, &state.config.keybindings) {
+        Some(Action::CursorUp) => {
             cursor_move(state, -1);
             true
         }
-        BareKey::Down | BareKey::Char('j') => {
+        Some(Action::CursorDown) => {
             cursor_move(state, 1);
             true
         }
-        BareKey::Enter => {
+        Some(Action::Activate) => {
             cursor_activate(state);
             true
         }
-        BareKey::Esc | BareKey::Char('q') => {
+        Some(Action::Dismiss) => {
             state.cursor_position = None;
             false
         }
-        _ => false,
+        Some(Action::ToggleCollapse) | Some(Action::NewTab) | None => false,
     }
 }
 
@@ -1307,5 +1376,196 @@ mod tests {
                 pane_id: None,
             }
         );
+    }
+
+    fn default_cfg() -> crate::config::KeybindingsConfig {
+        crate::config::KeybindingsConfig::default()
+    }
+
+    #[test]
+    fn test_resolve_action_default_j_is_cursor_down() {
+        let action = resolve_action(&make_key(BareKey::Char('j')), &default_cfg());
+        assert_eq!(action, Some(Action::CursorDown));
+    }
+
+    #[test]
+    fn test_resolve_action_default_down_is_cursor_down() {
+        let action = resolve_action(&make_key(BareKey::Down), &default_cfg());
+        assert_eq!(action, Some(Action::CursorDown));
+    }
+
+    #[test]
+    fn test_resolve_action_default_k_is_cursor_up() {
+        let action = resolve_action(&make_key(BareKey::Char('k')), &default_cfg());
+        assert_eq!(action, Some(Action::CursorUp));
+    }
+
+    #[test]
+    fn test_resolve_action_default_up_is_cursor_up() {
+        let action = resolve_action(&make_key(BareKey::Up), &default_cfg());
+        assert_eq!(action, Some(Action::CursorUp));
+    }
+
+    #[test]
+    fn test_resolve_action_default_enter_is_activate() {
+        let action = resolve_action(&make_key(BareKey::Enter), &default_cfg());
+        assert_eq!(action, Some(Action::Activate));
+    }
+
+    #[test]
+    fn test_resolve_action_default_esc_is_dismiss() {
+        let action = resolve_action(&make_key(BareKey::Esc), &default_cfg());
+        assert_eq!(action, Some(Action::Dismiss));
+    }
+
+    #[test]
+    fn test_resolve_action_default_q_is_dismiss() {
+        let action = resolve_action(&make_key(BareKey::Char('q')), &default_cfg());
+        assert_eq!(action, Some(Action::Dismiss));
+    }
+
+    #[test]
+    fn test_resolve_action_unknown_key_is_none() {
+        let action = resolve_action(&make_key(BareKey::Char('x')), &default_cfg());
+        assert_eq!(action, None);
+    }
+
+    #[test]
+    fn test_resolve_action_custom_cursor_down_to_n() {
+        let cfg = crate::config::KeybindingsConfig {
+            cursor_down: Some("n".into()),
+            ..Default::default()
+        };
+        assert_eq!(
+            resolve_action(&make_key(BareKey::Char('n')), &cfg),
+            Some(Action::CursorDown)
+        );
+    }
+
+    #[test]
+    fn test_resolve_action_custom_cursor_down_suppresses_default_j() {
+        let cfg = crate::config::KeybindingsConfig {
+            cursor_down: Some("n".into()),
+            ..Default::default()
+        };
+        assert_eq!(resolve_action(&make_key(BareKey::Char('j')), &cfg), None);
+        assert_eq!(resolve_action(&make_key(BareKey::Down), &cfg), None);
+    }
+
+    #[test]
+    fn test_resolve_action_custom_cursor_up_suppresses_default_k() {
+        let cfg = crate::config::KeybindingsConfig {
+            cursor_up: Some("p".into()),
+            ..Default::default()
+        };
+        assert_eq!(
+            resolve_action(&make_key(BareKey::Char('p')), &cfg),
+            Some(Action::CursorUp)
+        );
+        assert_eq!(resolve_action(&make_key(BareKey::Char('k')), &cfg), None);
+        assert_eq!(resolve_action(&make_key(BareKey::Up), &cfg), None);
+    }
+
+    #[test]
+    fn test_resolve_action_custom_dismiss_to_d() {
+        let cfg = crate::config::KeybindingsConfig {
+            dismiss: Some("d".into()),
+            ..Default::default()
+        };
+        assert_eq!(
+            resolve_action(&make_key(BareKey::Char('d')), &cfg),
+            Some(Action::Dismiss)
+        );
+        assert_eq!(resolve_action(&make_key(BareKey::Esc), &cfg), None);
+        assert_eq!(resolve_action(&make_key(BareKey::Char('q')), &cfg), None);
+    }
+
+    #[test]
+    fn test_resolve_action_enter_key_string() {
+        let cfg = crate::config::KeybindingsConfig {
+            activate: Some("Enter".into()),
+            ..Default::default()
+        };
+        assert_eq!(
+            resolve_action(&make_key(BareKey::Enter), &cfg),
+            Some(Action::Activate)
+        );
+    }
+
+    #[test]
+    fn test_custom_binding_cursor_down_moves_cursor() {
+        let mut state = PluginState::default();
+        state.config.keybindings.cursor_down = Some("n".into());
+        state.click_regions = three_regions();
+        state.cursor_position = Some(0);
+        handle_key(&mut state, make_key(BareKey::Char('n')));
+        assert_eq!(state.cursor_position, Some(1));
+    }
+
+    #[test]
+    fn test_custom_binding_j_no_longer_moves_cursor_down() {
+        let mut state = PluginState::default();
+        state.config.keybindings.cursor_down = Some("n".into());
+        state.click_regions = three_regions();
+        state.cursor_position = Some(0);
+        handle_key(&mut state, make_key(BareKey::Char('j')));
+        assert_eq!(
+            state.cursor_position,
+            Some(0),
+            "'j' should not move cursor when remapped"
+        );
+    }
+
+    #[test]
+    fn test_custom_binding_cursor_up_moves_cursor() {
+        let mut state = PluginState::default();
+        state.config.keybindings.cursor_up = Some("p".into());
+        state.click_regions = three_regions();
+        state.cursor_position = Some(2);
+        handle_key(&mut state, make_key(BareKey::Char('p')));
+        assert_eq!(state.cursor_position, Some(1));
+    }
+
+    #[test]
+    fn test_unbound_actions_still_use_defaults_when_others_remapped() {
+        let mut state = PluginState::default();
+        state.config.keybindings.cursor_down = Some("n".into());
+        state.click_regions = three_regions();
+        state.cursor_position = Some(2);
+        handle_key(&mut state, make_key(BareKey::Char('k')));
+        assert_eq!(
+            state.cursor_position,
+            Some(1),
+            "'k' should still work for cursor_up"
+        );
+    }
+
+    #[test]
+    fn test_parse_key_string_enter() {
+        assert_eq!(parse_key_string("Enter"), Some(BareKey::Enter));
+    }
+
+    #[test]
+    fn test_parse_key_string_esc() {
+        assert_eq!(parse_key_string("Esc"), Some(BareKey::Esc));
+    }
+
+    #[test]
+    fn test_parse_key_string_single_char() {
+        assert_eq!(parse_key_string("n"), Some(BareKey::Char('n')));
+        assert_eq!(parse_key_string("j"), Some(BareKey::Char('j')));
+    }
+
+    #[test]
+    fn test_parse_key_string_up_down() {
+        assert_eq!(parse_key_string("Up"), Some(BareKey::Up));
+        assert_eq!(parse_key_string("Down"), Some(BareKey::Down));
+    }
+
+    #[test]
+    fn test_parse_key_string_unknown_returns_none() {
+        assert_eq!(parse_key_string("Ctrl+j"), None);
+        assert_eq!(parse_key_string(""), None);
+        assert_eq!(parse_key_string("unknown"), None);
     }
 }
