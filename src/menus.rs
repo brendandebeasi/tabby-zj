@@ -104,24 +104,9 @@ pub fn build_tab_menu(tab_index: usize, group_names: &[String]) -> Vec<MenuItem>
         "◉ Set Color ▶",
         MenuAction::Submenu("Set Color".into(), color_items),
     ));
-    items.push(item("✦ Set Marker", MenuAction::OpenEmojiPicker(tab_index)));
-    let marker_items = vec![
-        item("🚀 Rocket", MenuAction::SetMarker(tab_index, "🚀".into())),
-        item("⭐ Star", MenuAction::SetMarker(tab_index, "⭐".into())),
-        item("🔥 Fire", MenuAction::SetMarker(tab_index, "🔥".into())),
-        item("✅ Done", MenuAction::SetMarker(tab_index, "✅".into())),
-        item("⚠️ Warning", MenuAction::SetMarker(tab_index, "⚠️".into())),
-        item("📌 Pin", MenuAction::SetMarker(tab_index, "📌".into())),
-        item("💡 Idea", MenuAction::SetMarker(tab_index, "💡".into())),
-        item("🔴 Red", MenuAction::SetMarker(tab_index, "🔴".into())),
-        item("🟢 Green", MenuAction::SetMarker(tab_index, "🟢".into())),
-        item("🔵 Blue", MenuAction::SetMarker(tab_index, "🔵".into())),
-        sep(),
-        item("✕ Clear marker", MenuAction::ClearMarker(tab_index)),
-    ];
     items.push(item(
-        "◈ Set Marker ▶",
-        MenuAction::Submenu("Set Marker".into(), marker_items),
+        "◈ Set Marker…",
+        MenuAction::OpenEmojiPicker(tab_index),
     ));
     items.push(sep());
     items.push(item("✕ Close tab", MenuAction::CloseTab(tab_index)));
@@ -613,40 +598,26 @@ mod tests {
     }
 
     #[test]
-    fn test_build_tab_menu_always_has_set_marker_submenu() {
+    fn test_build_tab_menu_always_has_set_marker_item() {
         let items = build_tab_menu(0, &[]);
-        let submenu = items
-            .iter()
-            .find(|i| matches!(&i.action, MenuAction::Submenu(label, _) if label == "Set Marker"))
-            .expect("tab menu should always have Set Marker submenu");
-        let sub_items = match &submenu.action {
-            MenuAction::Submenu(_, sub_items) => sub_items,
-            _ => panic!("expected submenu"),
-        };
         assert!(
-            sub_items
+            items
                 .iter()
-                .any(|i| matches!(&i.action, MenuAction::SetMarker(0, e) if e == "🚀")),
-            "Set Marker submenu should contain Rocket emoji option"
-        );
-        assert!(
-            sub_items
-                .iter()
-                .any(|i| matches!(i.action, MenuAction::ClearMarker(0))),
-            "Set Marker submenu should contain Clear option"
+                .any(|i| matches!(i.action, MenuAction::OpenEmojiPicker(0))),
+            "tab menu should have OpenEmojiPicker(0) item"
         );
     }
 
     #[test]
-    fn test_build_tab_menu_set_marker_submenu_label_has_indicator() {
+    fn test_build_tab_menu_set_marker_item_has_label() {
         let items = build_tab_menu(2, &[]);
-        let submenu = items
+        let marker_item = items
             .iter()
-            .find(|i| matches!(&i.action, MenuAction::Submenu(label, _) if label == "Set Marker"))
-            .expect("should have Set Marker submenu");
+            .find(|i| matches!(i.action, MenuAction::OpenEmojiPicker(2)))
+            .expect("should have OpenEmojiPicker(2) item");
         assert!(
-            submenu.label.contains('▶'),
-            "Set Marker submenu label should have ▶"
+            marker_item.label.contains("Marker"),
+            "Set Marker item label should contain 'Marker'"
         );
     }
 
