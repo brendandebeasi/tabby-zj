@@ -1414,4 +1414,71 @@ mod tests {
             "show_panes should default to true"
         );
     }
+
+    #[test]
+    fn test_menu_overlay_submenu_shows_back_header_on_first_row() {
+        use crate::menus::MenuItem;
+        use crate::state::{MenuState, MenuTarget};
+        let state = state_with_tabs(vec![make_tab("api", 0, false)]);
+        let (mut lines, _) = build_sidebar_lines(&state, 40);
+        let parent = crate::menus::build_tab_menu(0, &[]);
+        let sub_items = vec![MenuItem {
+            label: "→ Ops".into(),
+            action: crate::menus::MenuAction::MoveToGroup(0, "Ops".into()),
+            is_separator: false,
+        }];
+        let menu = MenuState {
+            target: MenuTarget::Tab(0),
+            selected_index: 0,
+            position_line: 0,
+            parent_items: Some(parent),
+            items_cache: Some(sub_items),
+        };
+        let theme = crate::colors::catppuccin_mocha();
+        let written = apply_menu_overlay(&mut lines, &menu, 0, 20, 40, &[], &theme);
+        assert!(
+            written >= 2,
+            "submenu should write back header + at least 1 item"
+        );
+        assert!(
+            lines[0].contains("Back"),
+            "first row should contain Back indicator"
+        );
+    }
+
+    #[test]
+    fn test_menu_overlay_submenu_item_on_row_after_back_header() {
+        use crate::menus::MenuItem;
+        use crate::state::{MenuState, MenuTarget};
+        let state = state_with_tabs(vec![
+            make_tab("api", 0, false),
+            make_tab("web", 1, false),
+            make_tab("db", 2, false),
+        ]);
+        let (mut lines, _) = build_sidebar_lines(&state, 40);
+        let original_line1 = lines[1].clone();
+        let parent = crate::menus::build_tab_menu(0, &[]);
+        let sub_items = vec![MenuItem {
+            label: "→ Backend".into(),
+            action: crate::menus::MenuAction::MoveToGroup(0, "Backend".into()),
+            is_separator: false,
+        }];
+        let menu = MenuState {
+            target: MenuTarget::Tab(0),
+            selected_index: 0,
+            position_line: 0,
+            parent_items: Some(parent),
+            items_cache: Some(sub_items),
+        };
+        let theme = crate::colors::catppuccin_mocha();
+        apply_menu_overlay(&mut lines, &menu, 0, 20, 40, &[], &theme);
+        assert_ne!(
+            lines[1], original_line1,
+            "row 1 (item 0 in submenu) should be replaced with submenu item"
+        );
+        assert!(
+            lines[1].contains("Backend") || lines[1].contains('▶'),
+            "row 1 should contain the submenu item content"
+        );
+    }
 }
