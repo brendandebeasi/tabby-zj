@@ -4,6 +4,24 @@ pub mod stats;
 
 use crate::state::PluginState;
 
+pub fn render_pinned_lines(state: &PluginState, cols: usize) -> Vec<String> {
+    let mut lines = vec![render_pinned(state, cols)];
+
+    if state.config.widgets.stats.enabled {
+        let stats_line = stats::render_stats(&state.stats);
+        if !stats_line.is_empty() {
+            let visible = stats_line.chars().count();
+            if visible >= cols {
+                lines.push(stats_line.chars().take(cols).collect());
+            } else {
+                lines.push(format!("{}{}", stats_line, " ".repeat(cols - visible)));
+            }
+        }
+    }
+
+    lines
+}
+
 pub fn render_pinned(state: &PluginState, cols: usize) -> String {
     let left = if state.config.widgets.clock.enabled {
         clock::render_clock(&state.config.widgets.clock.format, false)
@@ -24,18 +42,6 @@ pub fn render_pinned(state: &PluginState, cols: usize) -> String {
     } else {
         String::new()
     };
-
-    let stats = if state.config.widgets.stats.enabled {
-        stats::render_stats(&state.stats)
-    } else {
-        String::new()
-    };
-
-    let right = [right, stats]
-        .into_iter()
-        .filter(|s| !s.is_empty())
-        .collect::<Vec<_>>()
-        .join("  ");
 
     let left_len = left.chars().count();
     let right_len = right.chars().count();
@@ -130,7 +136,7 @@ mod tests {
     }
 
     #[test]
-    fn test_render_pinned_stats_on_right() {
+    fn test_render_pinned_ignores_stats_on_primary_line() {
         let mut state = PluginState::default();
         state.config.widgets.clock.enabled = false;
         state.config.widgets.git.enabled = false;
@@ -142,8 +148,23 @@ mod tests {
             battery_pct: Some(87),
         });
         let line = render_pinned(&state, 40);
-        assert!(line.contains("CPU:23%"));
-        assert!(line.contains("MEM:4.2G"));
-        assert!(line.contains("BAT:87%"));
+        assert!(!line.contains("CPU:"));
+        assert!(!line.contains("MEM:"));
+        assert!(!line.contains("BAT:"));
+    }
+
+    #[test]
+    fn test_render_pinned_lines_includes_second_stats_line_when_enabled() {
+        let mut state = PluginState::default();
+        state.config.widgets.stats.enabled = true;
+        state.stats = Some(stats::StatsData {
+            cpu_pct: Some(10.0),
+            mem_used_gb: Some(2.0),
+            mem_total_gb: Some(16.0),
+            battery_pct: Some(90),
+        });
+        let lines = render_pinned_lines(&state, 30);
+        assert!(lines.len() >= 2);
+        assert!(lines[1].contains("CPU:10%"));
     }
 }

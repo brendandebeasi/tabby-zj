@@ -6,7 +6,13 @@ use crate::state::{MenuTarget, PluginState, TabKey};
 use crate::widgets;
 use zellij_tile::prelude::*;
 
-pub const PINNED_HEIGHT: usize = 2;
+pub fn pinned_height(state: &PluginState) -> usize {
+    if state.config.widgets.stats.enabled {
+        3
+    } else {
+        2
+    }
+}
 
 #[allow(dead_code)]
 fn format_sidebar_line(bg: &str, fg: &str, text: &str, cursor: bool) -> String {
@@ -22,7 +28,8 @@ pub fn render_sidebar(state: &mut PluginState, rows: usize, cols: usize) {
         state.click_regions = Vec::new();
         return;
     }
-    let scrollable_rows = rows.saturating_sub(PINNED_HEIGHT);
+    let pinned_height = pinned_height(state);
+    let scrollable_rows = rows.saturating_sub(pinned_height);
 
     let sidebar_theme = {
         let s: &PluginState = state;
@@ -98,7 +105,21 @@ pub fn render_sidebar(state: &mut PluginState, rows: usize, cols: usize) {
     );
     print_text(Text::new(divider));
 
-    print_text(Text::new(build_widget_line(state, cols)));
+    if state.rename_state.is_some() {
+        print_text(Text::new(build_widget_line(state, cols)));
+        for _ in 1..pinned_height.saturating_sub(1) {
+            print_text(Text::new(" ".repeat(cols.max(1))));
+        }
+    } else {
+        let widget_lines = widgets::render_pinned_lines(state, cols);
+        for line in widget_lines.iter().take(pinned_height.saturating_sub(1)) {
+            print_text(Text::new(line.clone()));
+        }
+        let rendered_widget_lines = widget_lines.len().min(pinned_height.saturating_sub(1));
+        for _ in rendered_widget_lines..pinned_height.saturating_sub(1) {
+            print_text(Text::new(" ".repeat(cols.max(1))));
+        }
+    }
 }
 
 #[allow(dead_code)]
