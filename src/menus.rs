@@ -29,6 +29,7 @@ pub enum MenuAction {
     SetMarker(usize, String),
     ClearMarker(usize),
     ClearColor(usize),
+    DeleteGroup(String),
 }
 
 fn sep() -> MenuItem {
@@ -150,6 +151,8 @@ pub fn build_group_menu(group_name: &str) -> Vec<MenuItem> {
             "+ New tab in group",
             MenuAction::NewTabInGroup(group_name.into()),
         ),
+        sep(),
+        item("✕ Delete group", MenuAction::DeleteGroup(group_name.into())),
     ]
 }
 
@@ -242,6 +245,11 @@ pub fn execute_action(state: &mut PluginState, action: MenuAction) {
                 state.custom_colors.remove(&key);
                 flush_state(state);
             }
+        }
+        MenuAction::DeleteGroup(group_name) => {
+            state.group_assignments.retain(|_, v| *v != group_name);
+            state.collapsed_groups.remove(&group_name);
+            flush_state(state);
         }
         MenuAction::SetMarker(tab_pos, emoji) => {
             if let Some(key) = state
@@ -696,6 +704,76 @@ mod tests {
         let mut state = make_state_with_tab("api", 0);
         execute_action(&mut state, MenuAction::ClearColor(0));
         assert!(state.custom_colors.get(&TabKey::new("api", 0)).is_none());
+        assert!(state.active_menu.is_none());
+    }
+
+    #[test]
+    fn test_build_group_menu_has_delete_option() {
+        let items = build_group_menu("Ops");
+        assert!(
+            items
+                .iter()
+                .any(|i| matches!(&i.action, MenuAction::DeleteGroup(n) if n == "Ops")),
+            "group menu should have Delete group option"
+        );
+    }
+
+    #[test]
+    fn test_execute_delete_group_removes_assignments() {
+        let mut state = make_state();
+        state
+            .group_assignments
+            .insert(TabKey::new("api", 0), "Backend".into());
+        state
+            .group_assignments
+            .insert(TabKey::new("web", 1), "Backend".into());
+        execute_action(&mut state, MenuAction::DeleteGroup("Backend".into()));
+        assert!(
+            state.group_assignments.is_empty(),
+            "all Backend assignments should be removed"
+        );
+    }
+
+    #[test]
+    fn test_execute_delete_group_preserves_other_groups() {
+        let mut state = make_state();
+        state
+            .group_assignments
+            .insert(TabKey::new("api", 0), "Backend".into());
+        state
+            .group_assignments
+            .insert(TabKey::new("ui", 1), "Frontend".into());
+        execute_action(&mut state, MenuAction::DeleteGroup("Backend".into()));
+        assert!(
+            state
+                .group_assignments
+                .get(&TabKey::new("ui", 1))
+                .map(|v| v == "Frontend")
+                .unwrap_or(false),
+            "Frontend assignments should be preserved"
+        );
+        assert!(state
+            .group_assignments
+            .get(&TabKey::new("api", 0))
+            .is_none());
+    }
+
+    #[test]
+    fn test_execute_delete_group_removes_collapsed_state() {
+        let mut state = make_state();
+        state.collapsed_groups.insert("Ops".into());
+        execute_action(&mut state, MenuAction::DeleteGroup("Ops".into()));
+        assert!(
+            !state.collapsed_groups.contains("Ops"),
+            "collapsed state for deleted group should be removed"
+        );
+    }
+
+    #[test]
+    fn test_execute_delete_group_clears_active_menu() {
+        let mut state = make_state();
+        state.active_menu = Some(crate::state::MenuState::default());
+        execute_action(&mut state, MenuAction::DeleteGroup("X".into()));
         assert!(state.active_menu.is_none());
     }
 }
