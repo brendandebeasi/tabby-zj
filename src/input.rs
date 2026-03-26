@@ -733,8 +733,9 @@ pub fn handle_pipe(state: &mut PluginState, pipe_message: PipeMessage) -> bool {
             // Marker handling not yet wired to state — return true to ack receipt
             true
         }
-        PipeCommand::SetQuota { .. } => {
-            // Quota handling not yet wired to state — return true to ack receipt
+        PipeCommand::SetQuota { data } => {
+            let qd = crate::widgets::quota::parse_quota_data(&data);
+            state.quota = Some(qd);
             true
         }
         PipeCommand::Unknown(_) => false,

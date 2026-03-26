@@ -1,5 +1,6 @@
 pub mod clock;
 pub mod git;
+pub mod quota;
 pub mod stats;
 
 use crate::state::PluginState;
@@ -15,6 +16,18 @@ pub fn render_pinned_lines(state: &PluginState, cols: usize) -> Vec<String> {
                 lines.push(stats_line.chars().take(cols).collect());
             } else {
                 lines.push(format!("{}{}", stats_line, " ".repeat(cols - visible)));
+            }
+        }
+    }
+
+    if state.config.widgets.quota.enabled {
+        let quota_line = quota::render_quota(&state.quota);
+        if !quota_line.is_empty() {
+            let visible = quota_line.chars().count();
+            if visible >= cols {
+                lines.push(quota_line.chars().take(cols).collect());
+            } else {
+                lines.push(format!("{}{}", quota_line, " ".repeat(cols - visible)));
             }
         }
     }

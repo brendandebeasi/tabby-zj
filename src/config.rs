@@ -156,6 +156,8 @@ pub struct WidgetConfig {
     pub git: GitWidgetConfig,
     #[serde(default)]
     pub stats: StatsWidgetConfig,
+    #[serde(default)]
+    pub quota: QuotaWidgetConfig,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -221,6 +223,18 @@ impl Default for StatsWidgetConfig {
             enabled: false,
             interval_secs: default_stats_interval(),
         }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct QuotaWidgetConfig {
+    #[serde(default)]
+    pub enabled: bool,
+}
+
+impl Default for QuotaWidgetConfig {
+    fn default() -> Self {
+        Self { enabled: false }
     }
 }
 

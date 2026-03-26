@@ -7,11 +7,14 @@ use crate::widgets;
 use zellij_tile::prelude::*;
 
 pub fn pinned_height(state: &PluginState) -> usize {
+    let mut h = 2;
     if state.config.widgets.stats.enabled {
-        3
-    } else {
-        2
+        h += 1;
     }
+    if state.config.widgets.quota.enabled {
+        h += 1;
+    }
+    h
 }
 
 #[allow(dead_code)]
